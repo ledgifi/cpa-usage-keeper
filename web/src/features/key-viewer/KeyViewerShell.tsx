@@ -13,6 +13,7 @@ const KEY_VIEWER_PAGE_LABEL_KEYS: Record<KeyViewerPage, string> = {
   realtime: 'usage_stats.tab_realtime',
   analysis: 'usage_stats.tab_analysis',
   ranking: 'usage_stats.tab_ranking',
+  quota: 'key_quota.title',
 };
 
 interface KeyViewerShellProps {
@@ -72,12 +73,13 @@ export function KeyViewerShell({
 
             <DashboardToolbar
               activeId={activePage}
-              items={(Object.keys(KEY_VIEWER_PAGE_PATHS) as KeyViewerPage[]).map((page) => ({ id: page, label: t(KEY_VIEWER_PAGE_LABEL_KEYS[page]), href: appPath(KEY_VIEWER_PAGE_PATHS[page]) }))}
+              items={(Object.keys(KEY_VIEWER_PAGE_PATHS) as KeyViewerPage[]).filter((page) => page !== 'quota' || apiKey?.quota_enabled).map((page) => ({ id: page, label: t(KEY_VIEWER_PAGE_LABEL_KEYS[page]), href: appPath(KEY_VIEWER_PAGE_PATHS[page]) }))}
               onNavigate={(page) => onNavigate(KEY_VIEWER_PAGE_PATHS[page])}
               filters={filters}
               onRefresh={onRefresh}
               refreshing={refreshing}
               refreshDisabled={refreshDisabled}
+              refreshTitle={activePage === 'quota' ? t('key_quota.cache_only') : undefined}
             />
 
             {children}

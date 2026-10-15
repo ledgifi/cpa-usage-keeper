@@ -11,7 +11,7 @@ import (
 
 var isolatedConfigEnvKeys = []string{
 	"APP_HOST", "APP_PORT", "APP_BASE_PATH", "CPA_PUBLIC_URL", "WORK_DIR", "CPA_BASE_URL", "CPA_MANAGEMENT_KEY",
-	"CPA_REQUEST_LOG_ACCESS_ENABLED", "API_KEY_VIEWER_LOCAL_RANKING_ENABLED",
+	"CPA_REQUEST_LOG_ACCESS_ENABLED", "API_KEY_VIEWER_LOCAL_RANKING_ENABLED", "API_KEY_VIEWER_QUOTA_ENABLED",
 	"REDIS_QUEUE_ADDR", "REDIS_QUEUE_TLS", "REDIS_QUEUE_BATCH_SIZE", "REDIS_QUEUE_IDLE_INTERVAL",
 	"BACKUP_ENABLED", "BACKUP_INTERVAL", "BACKUP_RETENTION_DAYS",
 	"REQUEST_TIMEOUT", "LOG_LEVEL", "LOG_FILE_ENABLED", "LOG_DIR", "LOG_RETENTION_DAYS",
@@ -24,6 +24,7 @@ func TestLoadOptionalAccessFlags(t *testing.T) {
 		key   string
 		value func(*config.Config) bool
 	}{
+		{"API_KEY_VIEWER_QUOTA_ENABLED", func(cfg *config.Config) bool { return cfg.APIKeyViewerQuotaEnabled }},
 		{"CPA_REQUEST_LOG_ACCESS_ENABLED", func(cfg *config.Config) bool { return cfg.CPARequestLogAccessEnabled }},
 		{"QUOTA_UPSTREAM_RESPONSES_ENABLED", func(cfg *config.Config) bool { return cfg.QuotaUpstreamResponsesEnabled }},
 		{"API_KEY_VIEWER_LOCAL_RANKING_ENABLED", func(cfg *config.Config) bool { return cfg.APIKeyViewerLocalRankingEnabled }},

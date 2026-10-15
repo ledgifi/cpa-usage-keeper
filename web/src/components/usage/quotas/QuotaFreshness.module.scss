@@ -1,0 +1,4 @@
+.freshness { display: inline-flex; align-items: center; flex-wrap: wrap; flex-basis: 100%; gap: 0 6px; color: var(--text-secondary); font-size: 0.75rem; line-height: 1.5; }
+.status { display: inline-flex; align-items: center; gap: 6px; }
+.status[data-status='stale'] { color: var(--warning-color); }
+.status[data-status='unavailable'] { color: var(--danger-color); }

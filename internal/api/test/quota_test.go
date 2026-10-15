@@ -3,6 +3,7 @@ package test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -31,12 +32,18 @@ type quotaProviderStub struct {
 	cacheRequest             quota.CacheRequest
 	cacheResponse            quota.CacheResponse
 	cacheErr                 error
+	settings                 quota.AutoRefreshSettings
+	settingsErr              error
 	inspectionStatusResponse quota.InspectionStatus
 	inspectionStatusErr      error
 	inspectionStartResponse  quota.InspectionStatus
 	inspectionStartErr       error
 	inspectionStatusCalls    int
 	inspectionStartCalls     int
+}
+
+func (s *quotaProviderStub) GetAutoRefreshSettings(context.Context) (quota.AutoRefreshSettings, error) {
+	return s.settings, s.settingsErr
 }
 
 func (s *quotaProviderStub) DeleteCodexQuotaHistoryCycle(context.Context, string, int64) error {
@@ -402,6 +409,48 @@ func TestQuotaResetMapsServiceErrors(t *testing.T) {
 				if !strings.Contains(resp.Body.String(), message) {
 					t.Fatalf("missing %q: %s", message, resp.Body.String())
 				}
+			}
+		})
+	}
+}
+
+func TestQuotaCacheDisplayFreshness(t *testing.T) {
+	now := time.Now().UTC()
+	schedule := quota.AutoRefreshSettings{Enabled: true, Schedule: &quota.AutoRefreshSchedule{Unit: quota.AutoRefreshScheduleUnitHour, Value: 1}}
+	for _, tc := range []struct {
+		name        string
+		observed    time.Time
+		status      quota.RefreshTaskStatus
+		settings    quota.AutoRefreshSettings
+		settingsErr error
+		want        string
+	}{
+		{"scheduled fresh", now, quota.RefreshTaskStatusCompleted, schedule, nil, "available"},
+		{"scheduled stale", now.Add(-3 * time.Hour), quota.RefreshTaskStatusCompleted, schedule, nil, "stale"},
+		{"disabled schedule", now, quota.RefreshTaskStatusCompleted, quota.AutoRefreshSettings{}, nil, "cached"},
+		{"settings unavailable", now, quota.RefreshTaskStatusCompleted, schedule, errors.New("private settings failure"), "cached"},
+		{"latest failure with older success", now, quota.RefreshTaskStatusFailed, schedule, nil, "unavailable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			provider := &quotaProviderStub{settings: tc.settings, settingsErr: tc.settingsErr, cacheResponse: quota.CacheResponse{Items: []quota.CachedQuotaItem{{AuthIndex: "fixture", Status: tc.status, RefreshedAt: &tc.observed, Quota: &quota.CheckResponse{Quota: []quota.QuotaRow{{Key: "weekly"}}}}}}}
+			router := NewRouter(nil, nil, nil, nil, AuthConfig{}, nil, "", OptionalProviders{Quota: provider})
+			response := serveCredentialMutation(router, http.MethodPost, "/api/v1/quota/cache", `{"auth_indexes":["fixture"]}`)
+			var body struct {
+				Items []struct {
+					DisplayStatus string     `json:"display_status"`
+					FreshUntil    *time.Time `json:"fresh_until"`
+				}
+				ServerTime time.Time `json:"server_time"`
+				Scheduled  *bool     `json:"scheduled_refresh_enabled"`
+			}
+			if response.Code != 200 || json.Unmarshal(response.Body.Bytes(), &body) != nil || len(body.Items) != 1 || body.Items[0].DisplayStatus != tc.want || body.ServerTime.IsZero() {
+				t.Fatalf("unexpected display response: %d %s", response.Code, response.Body.String())
+			}
+			if (tc.want == "available" || tc.want == "stale") && body.Items[0].FreshUntil == nil {
+				t.Fatal("scheduled freshness requires a deadline")
+			}
+			if tc.settingsErr != nil && (body.Scheduled != nil || strings.Contains(response.Body.String(), "private settings failure")) {
+				t.Fatal("settings failure must leave freshness unknown")
 			}
 		})
 	}

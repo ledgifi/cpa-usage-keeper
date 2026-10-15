@@ -1462,3 +1462,30 @@ func TestRefreshCachesXAISharedUsageBreakdown(t *testing.T) {
 		}
 	}
 }
+
+func TestLatestRefreshFailureDoesNotRestoreOlderSuccessfulCache(t *testing.T) {
+	for _, failure := range []error{errors.New("fixture timeout"), ProviderHTTPError{StatusCode: 401, Message: "fixture expired auth"}} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			db := openQuotaTestDatabase(t)
+			seedUsageIdentity(t, db, entities.UsageIdentity{Identity: "offline-fixture", Provider: "claude", Type: "claude", AuthType: entities.UsageIdentityAuthTypeAuthFile})
+			handler := &refreshHandlerStub{err: failure}
+			service := newQuotaRefreshService(t, db, NewProviderRegistry(map[string]ProviderHandler{"claude": handler}))
+			setRefreshTasks(service, map[string]*RefreshTaskRecord{"offline-fixture": {AuthIndex: "offline-fixture", Status: RefreshTaskStatusCompleted, RefreshedAt: time.Now().Add(-time.Hour), Quota: &CheckResponse{Quota: []QuotaRow{{Key: "five_hour", UsedPercent: new(25.0)}}}}})
+			response := queueManualQuotaRefresh(t, service, "offline-fixture")
+			waitForRefreshTask(t, service, response.Tasks[0].AuthIndex, RefreshTaskStatusFailed)
+			before := handler.callCount()
+			cache, err := service.GetCachedQuota(context.Background(), CacheRequest{AuthIndexes: []string{"offline-fixture"}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, item := range cache.Items {
+				if item.Status == RefreshTaskStatusCompleted || item.Quota != nil {
+					t.Fatal("failed latest refresh restored successful older cache")
+				}
+			}
+			if handler.callCount() != before {
+				t.Fatal("cache read triggered provider check")
+			}
+		})
+	}
+}

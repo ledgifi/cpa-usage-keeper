@@ -16,7 +16,7 @@ import type { UsageIdentity, UsageIdentityTypeCount, UsageQuotaInspectionStatusR
 import { quotaRefreshDisplayError, useQuotaRefreshTasks, type QuotaState } from './useQuotaRefreshTasks'
 import type { CredentialProviderFilterKey } from './credentialProviderFilters'
 
-type CredentialQuotaState = Pick<AuthFileCredentialRow, 'quotaLoading' | 'quotaError' | 'refreshStatus' | 'quotaResetting'>
+type CredentialQuotaState = Pick<AuthFileCredentialRow, 'quotaLoading' | 'quotaError' | 'refreshStatus' | 'quotaResetting' | 'quotaCache'>
 
 interface CredentialResetState {
   quotaResetting?: boolean
@@ -61,6 +61,8 @@ interface UseCredentialsTabDataOptions {
 }
 
 export interface CredentialsTabData {
+  quotaScheduledRefreshEnabled?: boolean | null
+  quotaClockOffset?: number
   authFileRows: AuthFileCredentialRow[]
   aiProviderRows: AiProviderCredentialRow[]
   authFileTypeCounts: UsageIdentityTypeCount[]
@@ -119,7 +121,7 @@ export function useCredentialsTabData({ enabledAuthFiles, enabledAiProviders, on
     () => selectQuotaEligibleAuthIndexes(credentialPages.authFileIdentities),
     [credentialPages.authFileIdentities],
   )
-  const { quotaResponseByAuthIndex, quotaStateByAuthIndex, applyRefreshUpdates, refreshQuotaCache } = useQuotaCache({
+  const { quotaScheduledRefreshEnabled, quotaClockOffset, quotaResponseByAuthIndex, quotaStateByAuthIndex, applyRefreshUpdates, refreshQuotaCache } = useQuotaCache({
     enabled: enabledAuthFiles,
     authIndexes: currentAuthIndexes,
     onAuthRequired,
@@ -294,6 +296,7 @@ export function useCredentialsTabData({ enabledAuthFiles, enabledAiProviders, on
   }, [onNotice, refreshQuotaForAuthIndex])
 
   return {
+    quotaScheduledRefreshEnabled, quotaClockOffset,
     authFileRows,
     aiProviderRows,
     authFileTypeCounts: credentialPages.authFileTypeCounts,
@@ -411,6 +414,7 @@ export function buildCredentialQuotaStateMap(
     const state = quotaStateByAuthIndex[authIndex] ?? {}
     const resetState = resetStateByAuthIndex[authIndex] ?? {}
     return [authIndex, {
+      ...(state.quotaCache ? { quotaCache: state.quotaCache } : {}),
       quotaLoading: state.loading ?? false,
       quotaError: state.error,
       refreshStatus: state.refreshStatus,

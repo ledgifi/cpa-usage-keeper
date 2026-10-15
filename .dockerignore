@@ -16,6 +16,7 @@ AGENTS.md
 .DS_Store
 
 # runtime data
+.runtime-test/
 /data/
 *.db
 *.db-*

@@ -1,7 +1,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { AuthFileCredentialsSection, AuthFileQuotaPanel, INSPECTION_RESULT_PAGE_SIZE_OPTIONS, QuotaAutoRefreshSettingsModal, QuotaInspectionModal, buildInspectionResultsPage, buildInvalidInspectionAccountFileNames, buildQuotaAutoRefreshSettings, formatInspectionCompletedAt, formatInspectionProgressPercent, formatQuotaErrorDisplay, formatQuotaResetDuration, formatQuotaResetLabel, formatQuotaWindowUsageAriaLabel, inspectionIndicatorTone, invertInvalidInspectionAccountFileNames, isAutoRefreshSettingsControlDisabled, isAutoRefreshSettingsSaveDisabled, isInspectionStartDisabled, isQuotaInspectionCloseDisabled, isSelectableInspectionStatusFilter, nextInspectionResultStatusFilter, persistAuthFileDisplayMode, readStoredAuthFileDisplayMode, resolveQuotaAutoRefreshSettingsLoadFailure, selectAllInvalidInspectionAccountFileNames } from '../AuthFileCredentialsSection'
+import { AuthFileCredentialsSection, AuthFileQuotaPanel, INSPECTION_RESULT_PAGE_SIZE_OPTIONS, QuotaAutoRefreshSettingsModal, QuotaInspectionModal, buildInspectionResultsPage, buildInvalidInspectionAccountFileNames, buildQuotaAutoRefreshSettings, formatInspectionCompletedAt, formatInspectionProgressPercent, formatQuotaErrorDisplay, formatQuotaWindowUsageAriaLabel, inspectionIndicatorTone, invertInvalidInspectionAccountFileNames, isAutoRefreshSettingsControlDisabled, isAutoRefreshSettingsSaveDisabled, isInspectionStartDisabled, isQuotaInspectionCloseDisabled, isSelectableInspectionStatusFilter, nextInspectionResultStatusFilter, persistAuthFileDisplayMode, readStoredAuthFileDisplayMode, resolveQuotaAutoRefreshSettingsLoadFailure, selectAllInvalidInspectionAccountFileNames } from '../AuthFileCredentialsSection'
 import { createAuthFileSectionProps } from './credentialSectionFixtures'
 import type { AuthFileCredentialRow, DisplayQuota } from '../credentialViewModels'
 import type { UsageQuotaInspectionResult, UsageQuotaInspectionResultStatus } from '@/lib/types'
@@ -34,25 +34,6 @@ const renderSettings = (props: Partial<Parameters<typeof QuotaAutoRefreshSetting
     ...props,
   }),
 )
-
-describe('AuthFileCredentialsSection quota reset formatting', () => {
-  it.each([undefined, 'Local'])('does not guess a browser timezone for %s', (timeZone) => {
-    expect(formatQuotaResetLabel('2026-05-12T03:15:00-07:00', timeZone)).toBe('')
-  })
-
-  it.each([
-    ['2026-05-12T03:15:00-07:00', '05/12 18:15', '2d0h15m'],
-    ['2026-05-10T07:15:00-07:00', '05/10 22:15', '4h15m'],
-  ])('formats reset %s in the Keeper timezone', (resetAt, label, duration) => {
-    vi.setSystemTime(new Date('2026-05-10T10:00:00Z'))
-    try {
-      expect(formatQuotaResetLabel(resetAt, 'Asia/Shanghai')).toBe(label)
-      expect(formatQuotaResetDuration(resetAt)).toBe(duration)
-    } finally {
-      vi.useRealTimers()
-    }
-  })
-})
 
 describe('AuthFileCredentialsSection title', () => {
   it.each([
@@ -314,6 +295,23 @@ describe('AuthFileCredentialsSection quota usage mode rendering', () => {
     quotaLoading: false,
   } as AuthFileCredentialRow
 
+  it.each([undefined, 'Local', 'Invalid/Timezone'])('keeps a known reset countdown when the timezone is %s', (timeZone) => {
+    const now = Date.parse('2026-10-15T12:00:00Z')
+    const resetAt = new Date(now + 3000).toISOString()
+    const resetRow = { ...row, displayQuotas: [{ ...quota, resetText: resetAt }] }
+    const render = (clock: number) => renderToStaticMarkup(createElement(AuthFileQuotaPanel, { row: resetRow, quotaUsageMode: 'current', timeZone, now: clock }))
+
+    const html = render(now)
+    expect(html).toContain('key_quota.reset_in')
+    expect(html).toContain('3 sec')
+    expect(html).not.toContain('key_quota.reset_unknown')
+    expect(html).not.toContain('key_quota.resets')
+
+    const expired = render(now + 3000)
+    expect(expired).toContain('key_quota.reset_passed_short')
+    expect(expired).not.toContain('key_quota.reset_unknown')
+  })
+
   it('renders current quota usage by default and estimated usage when requested', () => {
     const currentHtml = renderToStaticMarkup(createElement(AuthFileQuotaPanel, { row, quotaUsageMode: 'current' }))
     const estimatedHtml = renderToStaticMarkup(createElement(AuthFileQuotaPanel, { row, quotaUsageMode: 'estimated' }))
@@ -471,7 +469,8 @@ describe('AuthFileCredentialsSection quota usage mode rendering', () => {
 
     const html = renderToStaticMarkup(createElement(AuthFileQuotaPanel, { row: noUsageRow, quotaUsageMode: 'current', timeZone: 'Asia/Shanghai' }))
 
-    expect(html).toContain('05/09 20:00')
+    expect(html).toMatch(/datetime="2026-05-09T12:00:00Z"/i)
+    expect(html).toContain('08:00 PM')
   })
 
   it('renders xai billing spend without token usage metrics', () => {

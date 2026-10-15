@@ -129,6 +129,16 @@ func NewRouter(
 	versionProtected := apiV1.Group("")
 	versionProtected.Use(authHandler.roleMiddleware(auth.RoleAdmin, auth.RoleAPIKeyViewer))
 	registerVersionRoutes(versionProtected)
+	quotasProtected := versionProtected.Group("")
+	quotasProtected.Use(func(c *gin.Context) {
+		value, _ := c.Get(authSessionContextKey)
+		if session, ok := value.(auth.Session); ok && session.Role == auth.RoleAdmin {
+			c.Next()
+			return
+		}
+		authHandler.activeAPIKeyViewerMiddleware()(c)
+	})
+	registerQuotasRoute(quotasProtected, usageIdentityProvider, quotaProvider, authHandler)
 
 	adminProtected := apiV1.Group("")
 	adminProtected.Use(authHandler.adminMiddleware())

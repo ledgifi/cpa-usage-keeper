@@ -2389,6 +2389,8 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
                     <AuthFileCredentialsSection
                       rows={credentialsData.authFileRows}
                       timeZone={credentialTimeZone}
+                      quotaScheduledRefreshEnabled={credentialsData.quotaScheduledRefreshEnabled}
+                      quotaClockOffset={credentialsData.quotaClockOffset}
                       total={credentialsData.authFileTotal}
                       page={credentialsData.authFilePage}
                       totalPages={credentialsData.authFileTotalPages}
@@ -2495,6 +2497,7 @@ export function UsagePage({ onAuthRequired }: { onAuthRequired?: () => void }) {
         open={credentialDetailOpen}
         selection={currentCredentialDetailSelection}
         timeZone={credentialTimeZone}
+        quotaClockOffset={credentialsData.quotaClockOffset}
         onResetStats={handleCredentialStatsReset}
         onAuthRequired={onAuthRequired}
         requestLogAccessEnabled={requestLogAccessEnabled}

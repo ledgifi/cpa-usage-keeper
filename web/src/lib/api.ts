@@ -1049,3 +1049,9 @@ export async function deletePricing(model: string): Promise<void> {
     await parseApiError(response, `Failed to delete pricing: ${response.status}`)
   }
 }
+
+export async function fetchQuotas(signal?: AbortSignal): Promise<import('./types').ViewerQuotaResponse> {
+  const response = await apiFetch(apiPath('/quotas'), { signal })
+  if (!response.ok) await parseApiError(response, 'Quota data is unavailable')
+  return response.json()
+}

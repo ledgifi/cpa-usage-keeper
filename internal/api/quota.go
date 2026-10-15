@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"cpa-usage-keeper/internal/quota"
 	"github.com/gin-gonic/gin"
@@ -150,7 +151,28 @@ func registerQuotaRoutes(router gin.IRoutes, provider QuotaProvider) {
 			return
 		}
 
-		c.JSON(http.StatusOK, response)
+		// Display metadata accompanies the existing cache read; it never starts
+		// collection. Failure to read scheduling settings leaves freshness unknown.
+		settings, settingsErr := provider.GetAutoRefreshSettings(c.Request.Context())
+		var scheduled *bool
+		if settingsErr == nil {
+			enabled := settings.Enabled && settings.Schedule != nil
+			scheduled = &enabled
+		} else {
+			settings = quota.AutoRefreshSettings{}
+		}
+		now := time.Now()
+		type displayItem struct {
+			quota.CachedQuotaItem
+			DisplayStatus string     `json:"display_status"`
+			FreshUntil    *time.Time `json:"fresh_until,omitempty"`
+		}
+		items := make([]displayItem, 0, len(response.Items))
+		for _, item := range response.Items {
+			status, deadline := quotaCacheFreshness(item, settings, now)
+			items = append(items, displayItem{item, status, deadline})
+		}
+		c.JSON(http.StatusOK, gin.H{"items": items, "server_time": now, "scheduled_refresh_enabled": scheduled})
 	})
 
 	router.GET("/quota/inspection", func(c *gin.Context) {

@@ -10,6 +10,7 @@ import { isKeyViewerPath, type KeyViewerPath } from './features/key-viewer';
 import { KeyAnalysisPage } from './pages/KeyAnalysisPage';
 import { KeyOverviewPage } from './pages/KeyOverviewPage';
 import { KeyRankingPage } from './pages/KeyRankingPage';
+import { QuotasPage } from './pages/QuotasPage';
 import { LoginPage } from './pages/LoginPage';
 import { UsagePage } from './pages/UsagePage';
 import { cpamcEmbedSearch, isCPAMCEmbed, notifyCPAMCEmbedReady } from './embed/cpamcEmbed';
@@ -31,9 +32,11 @@ export const getRoleTargetPath = (
   role: AuthRole,
   currentPath: string,
   isEmbeddedInCPAMC = false,
+  quotaEnabled = false,
 ): string => {
   // 路径白名单与会话角色共同决定落点；未知路径只回到该角色自己的首页。
   if (role === 'api_key_viewer') {
+    if (currentPath === '/quotas' && !quotaEnabled) return '/key-overview';
     return isKeyViewerPath(currentPath) ? currentPath : '/key-overview';
   }
   if (currentPath === '/') return '/';
@@ -47,7 +50,8 @@ export const shouldNormalizeRolePath = (
   role: AuthRole,
   currentPath: string,
   isEmbeddedInCPAMC = false,
-): boolean => currentPath !== getRoleTargetPath(role, currentPath, isEmbeddedInCPAMC);
+  quotaEnabled = false,
+): boolean => currentPath !== getRoleTargetPath(role, currentPath, isEmbeddedInCPAMC, quotaEnabled);
 
 function App() {
   const { t } = useTranslation();
@@ -98,13 +102,13 @@ function App() {
   useEffect(() => {
     if (authState !== 'authenticated' || !authRole) return;
     const strippedPath = stripAppBasePath(window.location.pathname, window.__APP_BASE_PATH__);
-    const targetPath = getRoleTargetPath(authRole, strippedPath ?? '/', isEmbeddedInCPAMC);
+    const targetPath = getRoleTargetPath(authRole, strippedPath ?? '/', isEmbeddedInCPAMC, sessionAPIKey?.quota_enabled);
     if (authRole === 'api_key_viewer') {
       setKeyViewerPath(targetPath as KeyViewerPath);
     }
     if (strippedPath === targetPath) return;
     window.history.replaceState(null, '', appPath(targetPath) + cpamcEmbedSearch());
-  }, [authRole, authState, isEmbeddedInCPAMC]);
+  }, [authRole, authState, isEmbeddedInCPAMC, sessionAPIKey?.quota_enabled]);
 
   const handlePasswordLogin = useCallback(async (password: string) => {
     setSubmitting(true);
@@ -118,7 +122,7 @@ function App() {
         return;
       }
       const currentPath = stripAppBasePath(window.location.pathname, window.__APP_BASE_PATH__) ?? '/';
-      const targetPath = getRoleTargetPath(session.role ?? 'admin', currentPath, isEmbeddedInCPAMC);
+      const targetPath = getRoleTargetPath(session.role ?? 'admin', currentPath, isEmbeddedInCPAMC, session.api_key?.quota_enabled);
       // 管理员凭据直达链接需跨登录保留；发生角色或路由重定向时仍只携带嵌入标记。
       const keepCredentialSearch = targetPath === currentPath && (targetPath === '/auth-files' || targetPath === '/ai-provider');
       const suffix = keepCredentialSearch ? window.location.search + window.location.hash : cpamcEmbedSearch();
@@ -147,7 +151,7 @@ function App() {
         return;
       }
       const currentPath = stripAppBasePath(window.location.pathname, window.__APP_BASE_PATH__) ?? '/';
-      const targetPath = getRoleTargetPath(session.role, currentPath, isEmbeddedInCPAMC) as KeyViewerPath;
+      const targetPath = getRoleTargetPath(session.role, currentPath, isEmbeddedInCPAMC, session.api_key?.quota_enabled) as KeyViewerPath;
       setKeyViewerPath(targetPath);
       window.history.replaceState(null, '', appPath(targetPath) + cpamcEmbedSearch());
     } catch (error) {
@@ -165,10 +169,11 @@ function App() {
   }, [clearSession, isEmbeddedInCPAMC, loadSession, t]);
 
   const handleKeyViewerNavigate = useCallback((path: KeyViewerPath) => {
+    if (path === '/quotas' && !sessionAPIKey?.quota_enabled) return;
     if (path === keyViewerPath) return;
     window.history.replaceState(null, '', appPath(path) + cpamcEmbedSearch());
     setKeyViewerPath(path);
-  }, [keyViewerPath]);
+  }, [keyViewerPath, sessionAPIKey?.quota_enabled]);
 
   let page: ReactNode;
   if (authState === 'checking') {
@@ -176,7 +181,9 @@ function App() {
   } else if (authState === 'unauthenticated') {
     page = <LoginPage loading={submitting} adminError={adminLoginError} apiKeyError={apiKeyLoginError} onPasswordSubmit={handlePasswordLogin} onAPIKeySubmit={handleAPIKeyLogin} />;
   } else if (authRole === 'api_key_viewer') {
-    page = keyViewerPath === '/key-analysis'
+    page = keyViewerPath === '/quotas' && sessionAPIKey?.quota_enabled
+      ? <QuotasPage apiKey={sessionAPIKey} onNavigate={handleKeyViewerNavigate} onAuthRequired={clearSession} />
+      : keyViewerPath === '/key-analysis'
       ? <KeyAnalysisPage apiKey={sessionAPIKey} onNavigate={handleKeyViewerNavigate} onAuthRequired={clearSession} />
       : keyViewerPath === '/key-ranking'
         ? <KeyRankingPage apiKey={sessionAPIKey} onNavigate={handleKeyViewerNavigate} onAuthRequired={clearSession} />

@@ -103,7 +103,7 @@ func appendClaudeWindowQuotaRow(rows []QuotaRow, key string, label string, scope
 		Key:         key,
 		Label:       label,
 		Scope:       scope,
-		UsedPercent: floatPtr(window.Utilization),
+		UsedPercent: presentFloat(window.Utilization, window.HasUtilization),
 		ResetAt:     window.ResetsAt,
 	}
 	// Claude 只给官方语义明确的 5h 会话窗口和 seven_day 系列补 seconds，其它未知 key 不猜测。
@@ -222,7 +222,7 @@ func appendCodexWindowQuotaRow(rows []QuotaRow, key string, label string, scope 
 		Label:             label,
 		Scope:             scope,
 		Metric:            metric,
-		UsedPercent:       floatPtr(window.UsedPercent),
+		UsedPercent:       presentFloat(window.UsedPercent, window.HasUsedPercent),
 		Allowed:           info.Allowed,
 		LimitReached:      info.LimitReached,
 		WindowUsageTokens: window.WindowUsageTokens,
@@ -231,7 +231,7 @@ func appendCodexWindowQuotaRow(rows []QuotaRow, key string, label string, scope 
 	if window.LimitWindowSeconds != 0 {
 		row.Window = &QuotaWindow{Seconds: intPtr(window.LimitWindowSeconds)}
 	}
-	if window.ResetAfterSeconds != 0 {
+	if window.HasResetAfterSeconds || window.ResetAfterSeconds != 0 {
 		row.ResetAfterSeconds = intPtr(window.ResetAfterSeconds)
 	}
 	if window.ResetAt != 0 {
@@ -704,4 +704,13 @@ func intPtr(value int64) *int64 {
 
 func boolPtr(value bool) *bool {
 	return &value
+}
+
+// Preserve missing versus explicit zero using upstream's existing window flags.
+// Nonzero typed values remain compatible with existing internal producers.
+func presentFloat(value float64, present bool) *float64 {
+	if !present && value == 0 {
+		return nil
+	}
+	return floatPtr(value)
 }

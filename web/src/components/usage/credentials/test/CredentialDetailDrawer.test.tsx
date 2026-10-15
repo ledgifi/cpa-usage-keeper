@@ -275,6 +275,28 @@ describe('CredentialDetailDrawer', () => {
     expect(document.body.textContent).not.toContain('usage_stats.credentials_detail_cumulative')
   })
 
+  it('ticks quota countdowns and marks a passed reset stale using the server clock', async () => {
+    const now = Date.parse('2026-10-15T12:00:00Z')
+    vi.setSystemTime(now + 60_000)
+    const quotaRow: AuthFileCredentialRow = {
+      ...authFileRow,
+      quotaCache: { status: 'cached', updated_at: new Date(now).toISOString() },
+      displayQuotas: [{ key: 'five_hour', label: '5-hour', percent: 50, barPercent: 50, percentKind: 'remaining', status: 'ok', resetText: new Date(now + 3000).toISOString() }],
+    }
+    await renderDrawer({ selection: { kind: 'auth-file', row: quotaRow }, timeZone: 'UTC', quotaClockOffset: -60_000 })
+    const countdown = () => document.body.querySelector('[data-reset-countdown]')?.textContent
+    expect(countdown()).toContain('3 sec')
+    await act(async () => vi.advanceTimersByTime(1000))
+    expect(countdown()).toContain('2 sec')
+    await act(async () => vi.advanceTimersByTime(2000))
+    expect(countdown()).toBe('key_quota.reset_passed_short')
+    expect(document.body.querySelector('[data-quota-meter]')?.getAttribute('data-stale')).toBe('true')
+    expect(document.body.querySelector('[data-quota-freshness]')?.getAttribute('data-status')).toBe('stale')
+    expect(fetchCodexQuotaHistory).not.toHaveBeenCalled()
+    expect(fetchUsageEvents).not.toHaveBeenCalled()
+    expect(fetchErrorEvents).not.toHaveBeenCalled()
+  })
+
   it('shows the shared quota history for Codex and Claude Auth Files', async () => {
     await renderDrawer({ selection: authFileSelection })
 

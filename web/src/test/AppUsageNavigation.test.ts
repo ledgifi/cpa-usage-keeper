@@ -14,6 +14,14 @@ describe('App usage-page route authorization', () => {
     expect(shouldNormalizeRolePath('api_key_viewer', '/key-overview')).toBe(false);
   });
 
+  it('requires the session quota capability for direct quota navigation', () => {
+    expect(getRoleTargetPath('api_key_viewer', '/quotas')).toBe('/key-overview');
+    expect(getRoleTargetPath('api_key_viewer', '/quotas', false, true)).toBe('/quotas');
+    expect(getRoleTargetPath('admin', '/quotas')).toBe('/');
+    expect(shouldNormalizeRolePath('api_key_viewer', '/quotas', false, true)).toBe(false);
+    expect(shouldNormalizeRolePath('api_key_viewer', '/quotas')).toBe(true);
+  });
+
   it('allows only known usage routes for administrators', () => {
     expect(getRoleTargetPath('admin', '/')).toBe('/');
     expect(getRoleTargetPath('admin', '/auth-files')).toBe('/auth-files');

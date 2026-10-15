@@ -8,6 +8,9 @@ import { RequestEventLogModal } from '@/components/usage/RequestEventLogModal'
 import { ApiError, fetchErrorEvents, fetchUsageEvents } from '@/lib/api'
 import type { ErrorEvent, UsageEvent, UsageEventRequestLogResponse } from '@/lib/types'
 import { AuthFileQuotaPanel } from './AuthFileCredentialsSection'
+import { useQuotaClock } from '../quotas/useQuotaClock'
+import { QuotaFreshness } from '../quotas/QuotaFreshness'
+import { quotaDisplayStatus } from '../quotas/quotaDisplay'
 import { CredentialErrorEventsList } from './CredentialErrorEventsList'
 import { CredentialHealthPanel } from './CredentialHealthPanel'
 import { CredentialPriorityBadge, cacheReadRateTone, credentialToneClassName, formatCredentialNumber, formatCredentialPercent, successRateTone } from './CredentialSectionShell'
@@ -15,7 +18,7 @@ import { CredentialSubscriptionBadge } from './CredentialSubscriptionBadge'
 import { CredentialKimiSiteBadge } from './CredentialKimiSiteBadge'
 import { CredentialRequestEventsList } from './CredentialRequestEventsList'
 import { CodexQuotaHistoryPanel } from './CodexQuotaHistoryPanel'
-import { formatCredentialTimestamp, type CredentialDetailSelection } from './credentialViewModels'
+import { authFileQuotaAccount, formatCredentialTimestamp, type CredentialDetailSelection } from './credentialViewModels'
 import styles from './CredentialDetailDrawer.module.scss'
 import credentialStyles from './CredentialSections.module.scss'
 
@@ -28,6 +31,7 @@ interface CredentialDetailDrawerProps {
   open: boolean
   selection: CredentialDetailSelection | null
   timeZone?: string
+  quotaClockOffset?: number
   onAuthRequired?: () => void
   onResetStats?: (id: string) => Promise<void>
   requestLogAccessEnabled?: boolean
@@ -75,6 +79,7 @@ export function CredentialDetailDrawer({
   open,
   selection,
   timeZone,
+  quotaClockOffset = 0,
   onAuthRequired,
   onResetStats,
   requestLogAccessEnabled = false,
@@ -88,6 +93,7 @@ export function CredentialDetailDrawer({
   onClose,
 }: CredentialDetailDrawerProps) {
   const { t } = useTranslation()
+  const quotaNow = useQuotaClock(quotaClockOffset)
   const overviewTabId = useId()
   const quotaHistoryTabId = useId()
   const requestsTabId = useId()
@@ -408,6 +414,7 @@ export function CredentialDetailDrawer({
 
   if (!selection || !row || !identity) return null
 
+  const quotaAccount = selection.kind === 'auth-file' ? authFileQuotaAccount(selection.row) : null
   const title = (
     <div className={styles.drawerTitle}>
       <ProviderBrandIcon providerType={identity.type} size={36} ariaLabel={row.typeLabel} />
@@ -432,6 +439,7 @@ export function CredentialDetailDrawer({
               ? t('usage_stats.credentials_detail_disabled')
               : t('usage_stats.credentials_detail_enabled')}
         </span>
+        {quotaAccount && <QuotaFreshness status={quotaDisplayStatus(quotaAccount, quotaNow)} updatedAt={quotaAccount.updated_at} now={quotaNow} />}
       </div>
     </div>
   )
@@ -563,7 +571,7 @@ export function CredentialDetailDrawer({
             {selection.kind === 'auth-file' ? (
               <section className={styles.overviewSection}>
                 <h3>{t('usage_stats.credentials_detail_quota')}</h3>
-                <AuthFileQuotaPanel row={selection.row} quotaUsageMode="current" timeZone={timeZone} />
+                <AuthFileQuotaPanel row={selection.row} quotaUsageMode="current" timeZone={timeZone} now={quotaNow} />
               </section>
             ) : null}
           </div>

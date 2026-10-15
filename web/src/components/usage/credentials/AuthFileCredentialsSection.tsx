@@ -11,17 +11,22 @@ import { PortalTooltip, usePortalTooltip } from '@/components/ui/PortalTooltip'
 import quotaCostIcon from '@/assets/icons/quota-cost.svg'
 import quotaTokenIcon from '@/assets/icons/quota-token.svg'
 import styles from './CredentialSections.module.scss'
-import { formatCredentialTimestamp, type AuthFileCredentialRow, type DisplayQuota } from './credentialViewModels'
+import { authFileQuotaAccount, displayQuotaRow, formatCredentialTimestamp, type AuthFileCredentialRow, type DisplayQuota } from './credentialViewModels'
 import { deleteAuthFiles, fetchClaudeResetGrants, fetchQuotaAutoRefreshSettings, fetchUsageQuotaResetCredits, setAuthFilesDisabled, updateQuotaAutoRefreshSettings, type UsageIdentityPageSort } from '@/lib/api'
 import type { ClaudeResetGrantsResponse, QuotaAutoRefreshScheduleUnit, QuotaAutoRefreshSettings, UsageQuotaInspectionResult, UsageQuotaInspectionResultStatus, UsageQuotaInspectionStatusResponse, UsageQuotaResetCreditsResponse, UsageQuotaResetResponse } from '@/lib/types'
 import { CredentialAliasEditor } from './CredentialAliasEditor'
 import { CredentialHealthPanel } from './CredentialHealthPanel'
 import { CredentialSubscriptionBadge } from './CredentialSubscriptionBadge'
 import { CredentialKimiSiteBadge, kimiCredentialSite } from './CredentialKimiSiteBadge'
-import { CredentialRowShell, CredentialSectionShell, CredentialTableHeader, CredentialsPagination, MetricPill, RequestMetric, TonePercent, cacheReadRateTone, capitalize, credentialToneClassName, formatCredentialNumber, successRateTone } from './CredentialSectionShell'
+import { CredentialRowShell, CredentialSectionShell, CredentialTableHeader, CredentialsPagination, MetricPill, RequestMetric, TonePercent, cacheReadRateTone, capitalize, formatCredentialNumber, successRateTone } from './CredentialSectionShell'
 import { CredentialPriorityEditor } from './CredentialPriorityEditor'
 import { ProviderBrandIcon, providerBrandIconKey } from '@/components/ProviderBrandIcon'
 import { CredentialStatusToggle } from './CredentialStatusToggle'
+import { QuotaMeter } from '../quotas/QuotaMeter'
+import { QuotaFreshness } from '../quotas/QuotaFreshness'
+import { QuotaWindowTimeline } from '../quotas/QuotaWindowTimeline'
+import { quotaDisplayStatus } from '../quotas/quotaDisplay'
+import { useQuotaClock } from '../quotas/useQuotaClock'
 
 type Translate = (key: string, options?: Record<string, string>) => string
 type InspectionIndicatorTone = 'idle' | 'running' | 'completed'
@@ -97,6 +102,8 @@ const AUTO_REFRESH_SCHEDULE_UNITS: QuotaAutoRefreshScheduleUnit[] = ['minute', '
 const AUTO_REFRESH_WEEKDAYS = [1, 2, 3, 4, 5, 6, 7] as const
 
 interface AuthFileCredentialsSectionProps {
+  quotaScheduledRefreshEnabled?: boolean | null
+  quotaClockOffset?: number
   rows: AuthFileCredentialRow[]
   timeZone?: string
   total: number
@@ -132,8 +139,9 @@ interface AuthFileCredentialsSectionProps {
   onAfterInvalidAccountAction?: () => Promise<void>
 }
 
-export function AuthFileCredentialsSection({ rows, timeZone, total, page, totalPages, pageSize, activeOnly, sort, loading, quotaRefreshing, quotaRefreshError, quotaInspectionStatus, quotaInspectionLoading, quotaInspectionStarting, quotaInspectionError, onPageChange, onPageSizeChange, onActiveOnlyChange, onSortChange, onRefreshQuota, onRefreshQuotaForAuthIndex, onResetQuotaForAuthIndex, editFallbackRef, onEdit, onOpenDetails, statusPendingIdentityIds, onToggleStatus, onSavePriority, onRefreshInspectionStatus, onStartInspection, onAfterInvalidAccountAction }: AuthFileCredentialsSectionProps) {
+export function AuthFileCredentialsSection({ quotaScheduledRefreshEnabled, quotaClockOffset = 0, rows, timeZone, total, page, totalPages, pageSize, activeOnly, sort, loading, quotaRefreshing, quotaRefreshError, quotaInspectionStatus, quotaInspectionLoading, quotaInspectionStarting, quotaInspectionError, onPageChange, onPageSizeChange, onActiveOnlyChange, onSortChange, onRefreshQuota, onRefreshQuotaForAuthIndex, onResetQuotaForAuthIndex, editFallbackRef, onEdit, onOpenDetails, statusPendingIdentityIds, onToggleStatus, onSavePriority, onRefreshInspectionStatus, onStartInspection, onAfterInvalidAccountAction }: AuthFileCredentialsSectionProps) {
   const { t } = useTranslation()
+  const now = useQuotaClock(quotaClockOffset)
   const [inspectionOpen, setInspectionOpen] = useState(false)
   const [quotaUsageMode, setQuotaUsageMode] = useState<QuotaUsageMode>('current')
   const [displayMode, setDisplayModeState] = useState<AuthFileDisplayMode>(() => readStoredAuthFileDisplayMode())
@@ -267,6 +275,7 @@ export function AuthFileCredentialsSection({ rows, timeZone, total, page, totalP
         const resetCredits = (isClaude ? row.claudeResetGrants?.availableCount : row.quotaResetCreditsAvailableCount) ?? 0
         const canResetQuota = resetCredits > 0 && !row.identity.is_deleted && !rowRefreshing && !row.quotaResetting
         const rowKey = row.identity.id || row.identity.identity
+        const quotaAccount = authFileQuotaAccount(row)
         const rowExpiryTooltipText = row.expiresAtLabel
           ? t('usage_stats.credentials_expiry_tooltip', { value: row.expiresAtLabel })
           : ''
@@ -309,7 +318,7 @@ export function AuthFileCredentialsSection({ rows, timeZone, total, page, totalP
                 <span className={styles.credentialDetailNameArrow} aria-hidden="true">‹</span>
               </button>
             ) : <span>{row.displayName}</span>}
-            subtitle={kimiCredentialSite(row.identity.type) || row.subscriptionBadge || row.remainingDaysLabel || row.priorityLabel || (onSavePriority && !row.identity.is_deleted) ? (
+            subtitle={!showHealthMode || kimiCredentialSite(row.identity.type) || row.subscriptionBadge || row.remainingDaysLabel || row.priorityLabel || (onSavePriority && !row.identity.is_deleted) ? (
               <span className={styles.credentialIdentityBadges}>
                 <CredentialKimiSiteBadge identityType={row.identity.type} />
                 {row.subscriptionBadge && <CredentialSubscriptionBadge model={row.subscriptionBadge} />}
@@ -350,6 +359,7 @@ export function AuthFileCredentialsSection({ rows, timeZone, total, page, totalP
                   readOnly={row.identity.is_deleted}
                   onSave={onSavePriority ? (priority) => onSavePriority(row.identity.id || row.identity.identity, row.identity.identity, priority) : undefined}
                 />
+                {!showHealthMode && <QuotaFreshness status={quotaDisplayStatus(quotaAccount, now)} updatedAt={quotaAccount.updated_at} now={now} />}
               </span>
             ) : undefined}
             badges={null}
@@ -367,7 +377,7 @@ export function AuthFileCredentialsSection({ rows, timeZone, total, page, totalP
               <CredentialHealthPanel displayName={row.displayName} health={row.credentialHealth} lastUsedAt={row.identity.last_used_at} statsUpdatedAt={row.identity.stats_updated_at} windowCacheReadRate={row.windowCacheReadRate} />
             ) : (
               <div className={styles.credentialQuotaSideWithAction}>
-                <AuthFileQuotaPanel row={row} quotaUsageMode={quotaUsageMode} timeZone={timeZone} />
+                <AuthFileQuotaPanel row={row} quotaUsageMode={quotaUsageMode} timeZone={timeZone} now={now} />
                 <div className={styles.credentialQuotaActionStack}>
                   {/* reset 按钮只在官方缓存给出可用次数时展示；refresh 始终保留在右侧列居中位置。 */}
                   {resetCredits > 0 && (
@@ -419,6 +429,10 @@ export function AuthFileCredentialsSection({ rows, timeZone, total, page, totalP
         onSortChange={(nextSort) => onSortChange(nextSort as UsageIdentityPageSort)}
       />
       </CredentialSectionShell>
+      {!showHealthMode && <>
+        {quotaScheduledRefreshEnabled === false && <p className={styles.credentialQuotaNotice}>{t('key_quota.schedule_disabled')}</p>}
+        <QuotaWindowTimeline accounts={rows.filter((row) => !row.identity.is_deleted && row.identity.disabled !== true).map(authFileQuotaAccount)} now={now} />
+      </>}
       {expiryTooltip && activeExpiryTooltipText && typeof document !== 'undefined'
         ? createPortal(
             <div
@@ -1741,7 +1755,15 @@ function isAuthFileDisplayMode(value: string | null | undefined): value is AuthF
   return value === 'quota' || value === 'health'
 }
 
-export function AuthFileQuotaPanel({ row, quotaUsageMode, timeZone }: { row: AuthFileCredentialRow; quotaUsageMode: QuotaUsageMode; timeZone?: string }) {
+export function AuthFileQuotaPanel({ row, quotaUsageMode, timeZone, now: clockNow }: { row: AuthFileCredentialRow; quotaUsageMode: QuotaUsageMode; timeZone?: string; now?: number }) {
+  const [mountedAt] = useState(Date.now)
+  const now = clockNow ?? mountedAt
+  const account = authFileQuotaAccount(row)
+  const status = quotaDisplayStatus(account, now)
+  return <AuthFileQuotaContent row={row} quotaUsageMode={quotaUsageMode} timeZone={timeZone} now={now} stale={status === 'stale'} />
+}
+
+function AuthFileQuotaContent({ row, quotaUsageMode, timeZone, now, stale }: { row: AuthFileCredentialRow; quotaUsageMode: QuotaUsageMode; timeZone?: string; now: number; stale: boolean }) {
   const { t } = useTranslation()
 
   // 限额区域按加载、错误、刷新中、无缓存、可展示数据的顺序降级。
@@ -1771,8 +1793,8 @@ export function AuthFileQuotaPanel({ row, quotaUsageMode, timeZone }: { row: Aut
       <div className={styles.credentialQuotaBars}>
         {/* 只有 canonical Antigravity 组提升为共享标题；其它 provider 继续沿用原始扁平 QuotaBar。 */}
         {authFileQuotaPanelItems(row.displayQuotas).map((item) => item.kind === 'group'
-          ? <AntigravityQuotaGroup key={item.renderKey} group={item} quotaUsageMode={quotaUsageMode} timeZone={timeZone} />
-          : <QuotaBar key={item.quota.key} quota={item.quota} quotaUsageMode={quotaUsageMode} timeZone={timeZone} tooltipAlignRight={item.tooltipAlignRight} />)}
+          ? <AntigravityQuotaGroup key={item.renderKey} group={item} quotaUsageMode={quotaUsageMode} timeZone={timeZone} now={now} stale={stale} />
+          : <QuotaBar key={item.quota.key} quota={item.quota} quotaUsageMode={quotaUsageMode} timeZone={timeZone} tooltipAlignRight={item.tooltipAlignRight} now={now} stale={stale} />)}
       </div>
     </div>
   )
@@ -1825,7 +1847,7 @@ function authFileQuotaPanelItems(quotas: DisplayQuota[]): AuthFileQuotaPanelItem
   return items
 }
 
-function AntigravityQuotaGroup({ group, quotaUsageMode, timeZone }: { group: AntigravityQuotaGroupItem; quotaUsageMode: QuotaUsageMode; timeZone?: string }) {
+function AntigravityQuotaGroup({ group, quotaUsageMode, timeZone, now, stale }: { group: AntigravityQuotaGroupItem; quotaUsageMode: QuotaUsageMode; timeZone?: string; now: number; stale: boolean }) {
   return (
     <div className={styles.credentialQuotaGroupBlock} data-quota-group={group.groupKey}>
       <div className={styles.credentialQuotaGroupHeader}>
@@ -1833,7 +1855,7 @@ function AntigravityQuotaGroup({ group, quotaUsageMode, timeZone }: { group: Ant
       </div>
       <div className={styles.credentialQuotaGroupBars}>
         {group.quotas.map((quota) => (
-          <QuotaBar key={quota.key} quota={quota} quotaUsageMode={quotaUsageMode} timeZone={timeZone} showGroupMetadata={false} />
+          <QuotaBar key={quota.key} quota={quota} quotaUsageMode={quotaUsageMode} timeZone={timeZone} showGroupMetadata={false} now={now} stale={stale} />
         ))}
       </div>
     </div>
@@ -2010,46 +2032,6 @@ function truncateQuotaErrorMessage(value: string): string {
   return `${value.slice(0, QUOTA_ERROR_MESSAGE_MAX_LENGTH).trimEnd()}...`
 }
 
-export function formatQuotaResetLabel(resetAt: string, timeZone?: string): string {
-  const resetTime = new Date(resetAt)
-  const resetMs = resetTime.getTime()
-  if (!Number.isFinite(resetMs)) {
-    return ''
-  }
-  const normalizedTimeZone = timeZone?.trim()
-  if (!normalizedTimeZone || normalizedTimeZone === 'Local') {
-    return ''
-  }
-  try {
-    // resetAt 保留 CPA 给出的绝对时刻，只用 Keeper 项目时区生成墙上时间，避免受浏览器时区影响。
-    const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: normalizedTimeZone,
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }).formatToParts(resetTime)
-    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]))
-    return `${values.month}/${values.day} ${values.hour}:${values.minute}`
-  } catch {
-    // Go 的 Local 或浏览器不认识的 IANA 名称无法可靠映射到 Keeper 墙上时间，隐藏标签而不是猜浏览器时区。
-    return ''
-  }
-}
-
-export function formatQuotaResetDuration(resetAt: string): string {
-  const resetMs = new Date(resetAt).getTime()
-  if (!Number.isFinite(resetMs)) {
-    return ''
-  }
-  const remainingMinutes = Math.max(0, Math.ceil((resetMs - Date.now()) / 60_000))
-  const days = Math.floor(remainingMinutes / 1_440)
-  const hours = Math.floor((remainingMinutes % 1_440) / 60)
-  const minutes = remainingMinutes % 60
-  return days > 0 ? `${days}d${hours}h${minutes}m` : `${hours}h${minutes}m`
-}
-
 export function formatQuotaWindowUsageAriaLabel(t: Translate, windowUsage: NonNullable<DisplayQuota['windowUsage']>): string {
   return t('usage_stats.credentials_quota_window_usage_aria', {
     tokens: windowUsage.tokens,
@@ -2065,35 +2047,19 @@ export function formatQuotaBillingUsageAriaLabel(t: Translate, billingUsage: Non
   })
 }
 
-function QuotaBar({ quota, quotaUsageMode, timeZone, showGroupMetadata = true, tooltipAlignRight = false }: { quota: DisplayQuota; quotaUsageMode: QuotaUsageMode; timeZone?: string; showGroupMetadata?: boolean; tooltipAlignRight?: boolean }) {
+function QuotaBar({ quota, quotaUsageMode, timeZone, now, stale, showGroupMetadata = true, tooltipAlignRight = false }: { quota: DisplayQuota; quotaUsageMode: QuotaUsageMode; timeZone?: string; now: number; stale: boolean; showGroupMetadata?: boolean; tooltipAlignRight?: boolean }) {
   const { t } = useTranslation()
-  // 条宽使用剩余额度百分比，颜色跟随剩余风险状态从绿到黄到红。
-  const percent = quota.barPercent ?? 0
-  const width = `${Math.max(0, Math.min(100, percent))}%`
-  const percentLabel = quota.barPercent === null ? '' : `${Math.round(quota.barPercent)}%`
-  const resetLabel = quota.resetText ? formatQuotaResetLabel(quota.resetText, timeZone) : ''
-  const resetDuration = quota.resetText ? formatQuotaResetDuration(quota.resetText) : ''
   const billingUsage = quota.billingUsage
   const windowUsage = billingUsage ? undefined : quotaWindowUsageForMode(quota, quotaUsageMode)
 
   return (
-    <div className={`${styles.credentialQuotaBarBlock} ${tooltipAlignRight ? styles.credentialQuotaBarTooltipRight : ''}`.trim()}>
-      <div className={styles.credentialQuotaBarHeader}>
-        <span className={`${styles.credentialQuotaLabelGroup} ${quota.usageBreakdown?.length ? styles.credentialQuotaLabelWithInfo : ''}`.trim()}>
+    <div className={tooltipAlignRight ? styles.credentialQuotaBarTooltipRight : undefined}>
+      <QuotaMeter row={displayQuotaRow(quota)} accountLabel="" stale={stale} now={now} timeZone={timeZone ?? 'Local'}
+        label={<span className={`${styles.credentialQuotaLabelGroup} ${quota.usageBreakdown?.length ? styles.credentialQuotaLabelWithInfo : ''}`.trim()}>
           <span>{quota.label}</span>
           {Boolean(quota.usageBreakdown?.length) && <QuotaUsageBreakdownInfo quota={quota} />}
-        </span>
-        {(resetDuration || percentLabel) && (
-          <span className={styles.credentialQuotaValueGroup}>
-            {resetDuration && <span className={styles.credentialQuotaResetDuration}>{resetDuration}</span>}
-            {percentLabel && <strong>{percentLabel}</strong>}
-          </span>
-        )}
-      </div>
-      {!(quota.usageBreakdown?.length && quota.barPercent === null) && <div className={styles.credentialQuotaTrack}>
-        <span className={`${styles.credentialQuotaFill} ${credentialToneClassName('credentialQuotaFill', quota.status)}`.trim()} style={{ width }} />
-      </div>}
-      <div className={styles.credentialQuotaMeta}>
+        </span>}>
+      {(Boolean(showGroupMetadata && quota.scope === 'quota_group' && quota.groupLabel) || billingUsage || windowUsage) && <div className={styles.credentialQuotaMeta}>
         {showGroupMetadata && quota.scope === 'quota_group' && quota.groupLabel && (
           <QuotaGroupLabel label={quota.groupLabel} description={quota.groupDescription} />
         )}
@@ -2117,8 +2083,8 @@ function QuotaBar({ quota, quotaUsageMode, timeZone, showGroupMetadata = true, t
             </span>
           </strong>
         )}
-        {resetLabel && <span className={styles.credentialQuotaResetTime}>{resetLabel}</span>}
-      </div>
+      </div>}
+      </QuotaMeter>
     </div>
   )
 }

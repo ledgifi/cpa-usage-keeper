@@ -35,6 +35,7 @@ vi.mock('../pages/KeyOverviewPage', () => ({
   ),
 }));
 vi.mock('../pages/KeyAnalysisPage', () => ({ KeyAnalysisPage: () => <div>Analysis</div> }));
+vi.mock('../pages/QuotasPage', () => ({ QuotasPage: () => <div>Quotas fixture</div> }));
 vi.mock('../pages/KeyRankingPage', () => ({ KeyRankingPage: () => <div>Ranking</div> }));
 
 describe('App session and navigation', () => {
@@ -57,6 +58,14 @@ describe('App session and navigation', () => {
     useUsageStatsStore.getState().clearUsageStats();
     delete window.__APP_BASE_PATH__;
     vi.restoreAllMocks();
+  });
+
+  it.each([false, true])('gates restored quota links with session capability %s', async (quotaEnabled) => {
+    window.history.replaceState(null, '', '/cpa/quotas');
+    api.getSession.mockResolvedValue({ authenticated: true, role: 'api_key_viewer', api_key: { display_key: 'viewer', quota_enabled: quotaEnabled } });
+    await act(async () => root.render(<App />));
+    expect(window.location.pathname).toBe(quotaEnabled ? '/cpa/quotas' : '/cpa/key-overview');
+    expect(container.textContent?.includes('Quotas fixture')).toBe(quotaEnabled);
   });
 
   it('clears stale usage errors and disables footer loading when a session expires', async () => {

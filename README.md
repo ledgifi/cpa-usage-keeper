@@ -459,6 +459,7 @@ For cross-origin CPAMC embedding, `CPA_PUBLIC_URL` must be a complete `http://` 
 | `LOGIN_PASSWORD` | When auth is enabled | - | Login password |
 | `CPA_REQUEST_LOG_ACCESS_ENABLED` | No | `false` | Allow administrators to view and download CPA request logs through Keeper; corresponding logs must exist in CPA and may contain request or response data |
 | `AUTH_SESSION_TTL` | No | `168h` | Login session lifetime |
+| `API_KEY_VIEWER_QUOTA_ENABLED` | No | `false` | Allow active private API Key viewers to read shared cached subscription quotas and reset countdowns; requires authentication. See [local setup and limits](docs/api-key-viewer-quotas.md). |
 | `API_KEY_VIEWER_LOCAL_RANKING_ENABLED` | No | `false` | Allow API Key viewers to read Local Ranking; Community Ranking remains read-only |
 
 ### Timezone And Request Behavior

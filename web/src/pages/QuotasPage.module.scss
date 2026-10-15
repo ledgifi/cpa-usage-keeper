@@ -1,0 +1,26 @@
+@use '../styles/mixins' as *;
+
+.quotaPage {
+  --quota-amber: #a66b08;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
+  padding: 8px 0 96px;
+  h1, h2, h3, p { margin: 0; }
+  h1 { font-size: clamp(1.5rem, 2.4vw, 1.85rem); letter-spacing: -0.04em; line-height: 1.15; }
+  h2 { font-size: 1rem; letter-spacing: -0.02em; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 4px; }
+}
+:global([data-theme='dark']) .quotaPage { --quota-amber: #edbd56; }
+.pageHeading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 20px; }
+.description { color: var(--text-secondary); font-size: 0.85rem; line-height: 1.6; }
+.notice { color: var(--quota-amber); font-size: 0.76rem; line-height: 1.55; }
+.error { padding: 16px; border: 1px solid var(--danger-color); border-radius: 12px; color: var(--danger-color); }
+.subscription { grid-template-columns: 260px minmax(0, 1fr); gap: 24px; padding: 18px 22px; align-items: start; }
+.identity { display: flex; flex-direction: column; align-items: start; gap: 8px; min-width: 0; }
+.accountName { display: flex; align-items: center; gap: 12px; width: 100%; h3 { font-size: 0.86rem; line-height: 1.5; overflow-wrap: anywhere; } }
+@include mobile {
+  .quotaPage { gap: 16px; }
+  .subscription { grid-template-columns: 1fr; gap: 16px; padding: 18px; }
+}

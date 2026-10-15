@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { ApiError, fetchUsageQuotaRefreshTask, refreshUsageQuotas } from '@/lib/api'
 import i18n from '@/i18n'
-import type { UsageQuotaCheckResponse, UsageQuotaRefreshResponse } from '@/lib/types'
+import type { UsageQuotaCheckResponse, UsageQuotaRefreshResponse, ViewerQuotaAccount } from '@/lib/types'
 
 export interface QuotaState {
+  quotaCache?: Pick<ViewerQuotaAccount, 'status' | 'updated_at' | 'fresh_until'>
   loading?: boolean
   error?: string
   refreshStatus?: 'queued' | 'running' | 'completed' | 'failed'
@@ -61,6 +62,7 @@ export function useQuotaRefreshTasks({ enabled, currentAuthIndexes, quotaStateBy
           }
           stateUpdates[task.authIndex] = {
             refreshStatus: response.status,
+            quotaCache: response.status === 'completed' ? { status: 'cached', updated_at: response.refreshed_at } : undefined,
             error: response.status === 'failed' ? quotaRefreshDisplayError(response.error) : undefined,
           }
           if (response.status === 'completed' || response.status === 'failed') {

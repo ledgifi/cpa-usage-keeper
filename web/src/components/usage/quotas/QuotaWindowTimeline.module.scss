@@ -1,0 +1,41 @@
+@use '../../../styles/mixins' as *;
+
+.section { min-width: 0; h2, p { margin: 0; } h2 { font-size: 1rem; } }
+.header { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; p { color: var(--text-secondary); font-size: 0.75rem; margin-top: 4px; } }
+.controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.navigation, .modes { display: flex; align-items: center; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-primary); padding: 3px; }
+.controls button { display: flex; align-items: center; justify-content: center; border: 0; background: transparent; border-radius: 7px; min-height: 32px; padding: 8px 12px; line-height: 1; color: var(--text-secondary); font: inherit; font-size: 0.75rem; cursor: pointer; &:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; } &:hover { color: var(--text-primary); } &:disabled { opacity: 0.4; cursor: default; } &[aria-pressed='true'] { background: var(--bg-tertiary); color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--border-primary); } }
+.title { display: flex; align-items: center; gap: 8px; }
+.scroll { width: 100%; overflow-x: auto; border: 1px solid var(--border-color); border-radius: 16px; background: var(--bg-primary); margin-top: 12px; &:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 3px; } }
+.chart { min-width: 960px; }
+.axis, .lane { display: grid; grid-template-columns: 252px minmax(0, 1fr); }
+.axis { min-height: 68px; color: var(--text-secondary); font-size: 0.75rem; }
+.axisLabel { display: flex; align-items: center; padding: 18px 16px 0; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.scale, .plot { position: relative; border-left: 1px solid var(--border-color); min-width: 0; }
+.tick { position: absolute; top: 0; bottom: 0; padding-top: 18px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; border-left: 1px solid var(--border-color); &:first-child { border-left: 0; } span { color: var(--text-secondary); } strong { font-weight: 600; } }
+.axisNow { position: absolute; top: 0; bottom: 0; z-index: 1; border-left: 2px solid var(--text-primary); time { position: absolute; top: 3px; left: -1px; transform: translateX(-50%); border-radius: 4px; padding: 1px 5px; background: var(--text-primary); color: var(--bg-primary); font-size: 0.65rem; font-weight: 650; white-space: nowrap; } }
+.lane { --lane-color: var(--primary-color); border-top: 1px solid var(--border-color); min-height: 64px; }
+.identity { padding: 10px 16px; display: flex; flex-direction: column; justify-content: center; gap: 3px; min-width: 0; div { display: flex; gap: 6px; align-items: center; min-width: 0; } strong { font-size: 0.8rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } > span { font-size: 0.75rem; color: var(--text-secondary); line-height: 1.5; } }
+.stale { color: var(--warning-color); font-size: 0.7rem; flex-shrink: 0; }
+.plot { overflow: hidden; min-height: 64px; }
+.gridline { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border-color); pointer-events: none; }
+.span { position: absolute; top: 50%; transform: translateY(-50%); height: 28px; box-sizing: border-box; border: 1px solid var(--lane-color); border-radius: 6px; background: color-mix(in srgb, var(--lane-color) 10%, var(--bg-primary)); overflow: hidden; display: flex; align-items: center; padding: 0 10px; font-size: 0.78rem; white-space: nowrap; min-width: 0; }
+.usedFill { position: absolute; inset: 0 auto 0 0; background: color-mix(in srgb, var(--lane-color) 50%, var(--bg-primary)); }
+.windowLabel { position: relative; overflow: hidden; text-overflow: ellipsis; }
+.plot[data-stale='true'] .span { background: color-mix(in srgb, var(--text-secondary) 15%, var(--bg-primary)); border-color: var(--text-secondary); border-style: dashed; color: var(--text-secondary); }
+.plot[data-stale='true'] .usedFill { background: repeating-linear-gradient(135deg, transparent 0 4px, color-mix(in srgb, var(--text-secondary) 28%, transparent) 4px 8px); }
+.future { border-style: dashed; background: transparent; color: var(--text-secondary); opacity: 0.6; }
+.resetMarker { position: absolute; top: 50%; height: 44px; width: 2px; background: var(--lane-color); transform: translate(-1px, -50%); }
+.plot[data-stale='true'] .resetMarker { background: var(--text-tertiary); }
+.now { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text-primary); pointer-events: none; }
+.unknown { position: absolute; left: 12px; right: 12px; bottom: 8px; font-size: 0.78rem; color: var(--text-secondary); text-align: right; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 0.75rem; color: var(--text-secondary); margin-top: 12px; > span { display: inline-flex; align-items: center; gap: 8px; } i { display: inline-block; } }
+.legendSpan { width: 26px; height: 10px; border: 1px solid var(--text-secondary); border-radius: 6px; background: color-mix(in srgb, var(--text-secondary) 18%, var(--bg-primary)); }
+.legendUsed { width: 26px; height: 10px; border-radius: 3px; background: var(--text-secondary); }
+.legendFuture { width: 26px; height: 10px; border: 1px dashed var(--text-secondary); border-radius: 3px; }
+.legendNow { width: 1px; height: 14px; background: var(--text-primary); }
+.empty { padding: 20px; color: var(--text-secondary); font-size: 0.8rem; }
+@include mobile { .header { align-items: start; } .chart { min-width: 900px; } .axis, .lane { grid-template-columns: 150px minmax(0, 1fr); } .identity { padding: 12px 10px; } .identity > div { align-items: start; } .identity, .axisLabel { position: sticky; left: 0; z-index: 2; background: var(--bg-primary); } .controls { width: 100%; gap: 8px; } .modes { flex: 1 1 auto; } .modes button { flex: 1 1 auto; white-space: nowrap; } .controls button { padding: 7px 8px; } }
+
+.lane[data-provider='claude' i] { --lane-color: #c99071; }
+.lane[data-provider='codex' i] { --lane-color: #a59ee4; }

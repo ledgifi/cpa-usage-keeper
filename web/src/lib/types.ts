@@ -4,6 +4,7 @@ export interface AuthSessionAPIKeySummary {
   display_key: string
   alias?: string
   local_ranking_enabled?: boolean
+  quota_enabled?: boolean
 }
 
 export interface AuthSessionResponse {
@@ -568,6 +569,8 @@ export interface UsageQuotaResetCreditsResponse {
 }
 
 export interface UsageQuotaCacheItem {
+  display_status?: ViewerQuotaAccount['status']
+  fresh_until?: string
   auth_index: string
   file_name?: string
   status: 'completed' | 'failed'
@@ -580,6 +583,8 @@ export interface UsageQuotaCacheItem {
 }
 
 export interface UsageQuotaCacheResponse {
+  server_time?: string
+  scheduled_refresh_enabled?: boolean | null
   items: UsageQuotaCacheItem[]
 }
 
@@ -986,4 +991,34 @@ export interface UsageFilterWindow {
   startMs?: number
   endMs?: number
   windowMinutes?: number
+}
+
+// Display-only shared subscriptions; no auth-file identity or raw provider data.
+export interface ViewerQuotaRow {
+  id: string
+  label: string
+  metric?: string
+  used?: number
+  remaining?: number
+  limit?: number
+  remaining_percent?: number
+  used_percent?: number
+  reset_at?: string
+  window_seconds?: number
+  limit_reached?: boolean
+}
+export interface ViewerQuotaAccount {
+  id: string
+  label: string
+  provider: string
+  status: 'available' | 'cached' | 'stale' | 'unavailable'
+  updated_at?: string
+  fresh_until?: string
+  subscription?: { plan: string; tier?: string }
+  rows: ViewerQuotaRow[]
+}
+export interface ViewerQuotaResponse {
+  accounts: ViewerQuotaAccount[]
+  server_time: string
+  scheduled_refresh_enabled: boolean
 }

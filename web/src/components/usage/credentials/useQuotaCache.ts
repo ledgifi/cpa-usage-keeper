@@ -14,6 +14,8 @@ interface UseQuotaCacheOptions {
 }
 
 export interface QuotaCacheState {
+  quotaScheduledRefreshEnabled?: boolean | null
+  quotaClockOffset: number
   quotaResponseByAuthIndex: Record<string, UsageQuotaCheckResponse>
   quotaStateByAuthIndex: Record<string, QuotaState>
   applyRefreshUpdates: (states: Record<string, QuotaState>, quotas?: Record<string, UsageQuotaCheckResponse>) => void
@@ -21,6 +23,7 @@ export interface QuotaCacheState {
 }
 
 export function useQuotaCache({ enabled, authIndexes, onAuthRequired }: UseQuotaCacheOptions): QuotaCacheState {
+  const [cacheMetadata, setCacheMetadata] = useState<{ quotaScheduledRefreshEnabled?: boolean | null; quotaClockOffset: number }>({ quotaClockOffset: 0 })
   const [snapshot, setSnapshot] = useState<QuotaSnapshot>({ quotas: {}, states: {} })
   // 每个凭证单独记录手动任务更新；缓存请求只可写回读取期间未变化且未在刷新中的条目。
   const refreshRevisions = useRef<Record<string, number>>({})
@@ -85,6 +88,8 @@ export function useQuotaCache({ enabled, authIndexes, onAuthRequired }: UseQuota
       if (controller.signal.aborted || requestControllerRef.current !== controller) {
         return
       }
+      const serverTime = Date.parse(response.server_time ?? '')
+      setCacheMetadata({ quotaScheduledRefreshEnabled: response.scheduled_refresh_enabled, quotaClockOffset: Number.isFinite(serverTime) ? serverTime - Date.now() : 0 })
       const items = new Map(response.items.map((item) => [item.auth_index, item]))
       const states: Record<string, QuotaState> = {}
       const quotas: Record<string, UsageQuotaCheckResponse> = {}
@@ -96,6 +101,7 @@ export function useQuotaCache({ enabled, authIndexes, onAuthRequired }: UseQuota
         // 缓存成功和失败都更新同一份状态，巡检成功无需再压制另一份手动错误。
         states[authIndex] = item ? {
           refreshStatus: item.status,
+          quotaCache: { status: item.display_status ?? (item.status === 'completed' ? 'cached' : 'unavailable'), updated_at: item.refreshed_at, fresh_until: item.fresh_until },
           error: item.status === 'failed' ? quotaRefreshDisplayError(item.error) : undefined,
         } : {}
         if (item?.status === 'completed' && item.quota) {
@@ -131,6 +137,7 @@ export function useQuotaCache({ enabled, authIndexes, onAuthRequired }: UseQuota
   }, [enabled, refreshQuotaCache])
 
   return {
+    ...cacheMetadata,
     quotaResponseByAuthIndex: snapshot.quotas,
     quotaStateByAuthIndex: snapshot.states,
     applyRefreshUpdates,
@@ -153,7 +160,7 @@ function applyQuotaUpdates(current: QuotaSnapshot, states: Record<string, QuotaS
       : { ...update, source }
     const working = state.refreshStatus === 'queued' || state.refreshStatus === 'running'
     const quota = quotas[authIndex] ?? (working ? current.quotas[authIndex] : undefined)
-    if (previous?.loading === state.loading && previous?.error === state.error && previous?.refreshStatus === state.refreshStatus && previous?.source === state.source && current.quotas[authIndex] === quota) {
+    if (previous?.loading === state.loading && previous?.error === state.error && previous?.refreshStatus === state.refreshStatus && previous?.source === state.source && previous?.quotaCache === state.quotaCache && current.quotas[authIndex] === quota) {
       continue
     }
     if (next === current) {

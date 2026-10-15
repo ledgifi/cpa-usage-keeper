@@ -1,0 +1,6 @@
+.meter { display: flex; flex-direction: column; gap: 4px; min-width: 0; color: var(--text-secondary); font-size: 0.75rem; line-height: 1.5; p { margin: 0; } }
+.heading { flex-wrap: wrap; gap: 6px 12px; margin-bottom: 0; color: var(--text-primary); }
+.value { font-weight: 650; span { font-weight: 450; } }
+.meter[data-stale='true'] .value { color: var(--text-secondary); font-weight: 450; }
+.unknownTrack { height: 6px; border-radius: 999px; border: 1px dashed var(--border-primary); }
+.reset { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 5px; color: var(--text-secondary); font-variant-numeric: tabular-nums; time { white-space: nowrap; } }

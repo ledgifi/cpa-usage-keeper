@@ -1,4 +1,4 @@
-import type { ClaudeResetGrantStatus, UsageCredentialHealth, UsageIdentity, UsageQuotaCheckResponse, UsageQuotaRow } from '@/lib/types'
+import type { ClaudeResetGrantStatus, UsageCredentialHealth, UsageIdentity, UsageQuotaCheckResponse, UsageQuotaRow, ViewerQuotaAccount, ViewerQuotaRow } from '@/lib/types'
 import { calculateCacheReadRate, formatCompactTokenValue } from '@/utils/usage'
 import { resolveCredentialSubscriptionBadge, type SubscriptionBadgeModel } from './credentialSubscription'
 
@@ -33,6 +33,7 @@ export interface DisplayQuota {
   percent: number | null
   barPercent: number | null
   percentKind: 'used' | 'remaining' | 'unknown'
+  limitReached?: boolean
   used?: number
   limit?: number
   remaining?: number
@@ -45,6 +46,7 @@ export interface DisplayQuota {
 }
 
 export interface AuthFileCredentialRow {
+  quotaCache?: Pick<ViewerQuotaAccount, 'status' | 'updated_at' | 'fresh_until'>
   identity: UsageIdentity
   displayName: string
   maskedIdentity: string
@@ -153,13 +155,13 @@ export function buildAuthFileCredentialRows(
   // Auth Files 行合并 usage identity、缓存 quota 和刷新任务状态，组件不再重复拼装字段。
   identities: UsageIdentity[],
   quotas: Map<string, UsageQuotaCheckResponse> = new Map(),
-  quotaStates: Map<string, Pick<AuthFileCredentialRow, 'quotaLoading' | 'quotaError' | 'refreshStatus' | 'quotaResetting'>> = new Map(),
+  quotaStates: Map<string, Pick<AuthFileCredentialRow, 'quotaLoading' | 'quotaError' | 'refreshStatus' | 'quotaResetting' | 'quotaCache'>> = new Map(),
 ): AuthFileCredentialRow[] {
   return identities.map((identity) => {
     const quotaResponse = quotas.get(identity.identity)
     const quota = quotaResponse?.quota ?? []
     const state = quotaStates.get(identity.identity)
-    const displayQuotas = quota.map(toDisplayQuota).filter(isDisplayableQuota)
+    const displayQuotas = quota.map((item) => toDisplayQuota(item, state?.quotaCache?.updated_at)).filter(isDisplayableQuota)
     const subscriptionBadge = resolveCredentialSubscriptionBadge(quotaResponse?.subscription ?? identity.subscription)
 
     return {
@@ -178,6 +180,7 @@ export function buildAuthFileCredentialRows(
       quota,
       quotaResetCreditsAvailableCount: quotaResponse?.rateLimitResetCreditsAvailableCount,
       claudeResetGrants: quotaResponse?.claudeResetGrants,
+      quotaCache: state?.quotaCache,
       quotaLoading: state?.quotaLoading ?? false,
       quotaError: state?.quotaError,
       refreshStatus: state?.refreshStatus,
@@ -205,7 +208,7 @@ export function buildAiProviderCredentialRows(identities: UsageIdentity[]): AiPr
   }))
 }
 
-function toDisplayQuota(row: UsageQuotaRow): DisplayQuota | undefined {
+function toDisplayQuota(row: UsageQuotaRow, observedAt?: string): DisplayQuota | undefined {
   // 后端 quota row 可能是 used、remaining 或 remainingFraction，这里统一成展示进度。
   const used = finiteNumber(row.used)
   const limit = finiteNumber(row.limit)
@@ -229,10 +232,11 @@ function toDisplayQuota(row: UsageQuotaRow): DisplayQuota | undefined {
     percent: percentDisplay.percent,
     barPercent: quotaBarPercent(percentDisplay.percent, percentDisplay.kind),
     percentKind: percentDisplay.kind,
+    limitReached: row.limitReached,
     used,
     limit,
     remaining,
-    resetText: row.resetAt,
+    resetText: row.resetAt ?? relativeQuotaReset(row.resetAfterSeconds, observedAt),
     windowSeconds,
     windowUsage: quotaWindowUsage(row),
     windowUsageEstimate: quotaWindowUsageEstimate(row, percentDisplay),
@@ -584,4 +588,29 @@ function finiteNumber(value: number | undefined): number | undefined {
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value))
+}
+
+function relativeQuotaReset(seconds?: number, observedAt?: string): string | undefined {
+  const observed = Date.parse(observedAt ?? '')
+  return seconds != null && Number.isFinite(seconds) && Math.abs(seconds) <= 366 * 86400 && Number.isFinite(observed)
+    ? new Date(observed + seconds * 1000).toISOString() : undefined
+}
+
+// Admin presentation uses its existing identity/cache data. Never pass these
+// rows to a viewer; the viewer receives its dedicated server-side projection.
+export function authFileQuotaAccount(row: AuthFileCredentialRow): ViewerQuotaAccount {
+  const unavailable = row.quotaLoading || row.quotaError || row.refreshStatus === 'queued' || row.refreshStatus === 'running' || row.refreshStatus === 'failed' || row.displayQuotas.length === 0
+  return {
+    id: row.identity.id || row.identity.identity,
+    label: row.displayName,
+    provider: row.identity.type,
+    status: unavailable ? 'unavailable' : row.quotaCache?.status ?? 'cached',
+    updated_at: row.quotaCache?.updated_at,
+    fresh_until: row.quotaCache?.fresh_until,
+    rows: unavailable ? [] : row.displayQuotas.map(displayQuotaRow),
+  }
+}
+
+export function displayQuotaRow(quota: DisplayQuota): ViewerQuotaRow {
+  return { id: quota.key, label: quota.label, limit_reached: quota.limitReached, remaining_percent: quota.barPercent ?? undefined, reset_at: quota.resetText, window_seconds: quota.windowSeconds }
 }
