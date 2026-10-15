@@ -24,7 +24,7 @@ vi.mock('@/lib/api', async (importOriginal) => ({
 import { UsagePage } from '../UsagePage';
 
 const RESET_AT = '2026-05-12T03:15:00-07:00';
-const PROJECT_RESET_LABEL = '05/12 18:15';
+const PROJECT_RESET_LABEL = 'May 12, 06:15 PM';
 
 const credential = {
   id: '1',
@@ -92,7 +92,9 @@ describe('UsagePage credential project timezone', () => {
     await act(async () => root.render(<UsagePage />));
 
     expect(container.textContent).toContain(PROJECT_RESET_LABEL);
-    expect(container.textContent).not.toContain('05/12 10:15');
+    const resetTime = container.querySelector<HTMLTimeElement>(`time[datetime="${RESET_AT}"]`);
+    expect(resetTime?.getAttribute('aria-label')).toContain('6:15:00 PM');
+    expect(resetTime?.getAttribute('title')).toContain('6:15:00 PM');
 
     const detailTrigger = container.querySelector<HTMLButtonElement>('[data-credential-detail-trigger]');
     expect(detailTrigger).not.toBeNull();
