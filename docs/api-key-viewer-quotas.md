@@ -107,8 +107,9 @@ Source and public image live under `ledgifi/cpa-usage-keeper`. Keep upstream
 history and a small maintained patch on `main`; the `upstream` remote tracks
 `Willxup/cpa-usage-keeper`. Release tags use `v<upstream>-ledgifi.<revision>`
 (starting with `v1.15.11-ledgifi.1`). Use the existing Dockerfile and release
-Docker workflow; binary and development publishing workflows are disabled in
-this fork's GitHub settings. No additional packaging system is needed.
+Docker workflow, targeting only `linux/amd64` for the internal Unraid host.
+Binary and development publishing workflows are disabled in this fork's GitHub
+settings. No additional packaging system is needed.
 
 Pin the Unraid Keeper template to the release image digest, keeping its existing
 private environment, persistent data, network and Tailscale identity. Enable
