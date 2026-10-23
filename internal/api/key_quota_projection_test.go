@@ -12,7 +12,7 @@ import (
 
 func TestViewerProjectionInvalidNumbersPlansAndAbsoluteReset(t *testing.T) {
 	now := time.Now().UTC()
-	identity := entities.UsageIdentity{ID: 1, Type: "codex", AuthType: entities.UsageIdentityAuthTypeAuthFile}
+	identity := entities.UsageIdentity{ID: 1, Type: "codex", AuthType: entities.UsageIdentityAuthTypeCredential}
 	future := now.Add(time.Hour)
 	item := quota.CachedQuotaItem{Status: quota.RefreshTaskStatusCompleted, RefreshedAt: &now, Quota: &quota.CheckResponse{
 		Subscription: &quota.SubscriptionInfo{Provider: "codex", Plan: "private-email@example.com", TierName: "secret"},
@@ -93,7 +93,7 @@ func TestViewerProjectionOmitsAmbiguousStockProviderValues(t *testing.T) {
 
 func TestViewerProjectionWindowDurationIsBoundedDisplayMetadata(t *testing.T) {
 	now := time.Now().UTC()
-	identity := entities.UsageIdentity{ID: 1, Type: "codex", AuthType: entities.UsageIdentityAuthTypeAuthFile}
+	identity := entities.UsageIdentity{ID: 1, Type: "codex", AuthType: entities.UsageIdentityAuthTypeCredential}
 	for _, seconds := range []int64{0, -1, 18000, 604800, 366 * 86400, 366*86400 + 1} {
 		item := quota.CachedQuotaItem{Status: quota.RefreshTaskStatusCompleted, RefreshedAt: &now, Quota: &quota.CheckResponse{Quota: []quota.QuotaRow{{Key: "safe", Window: &quota.QuotaWindow{Seconds: &seconds, Unit: "secret-unit", Duration: new(42.0)}}}}}
 		account := buildViewerQuotaAccount(identity, item, quota.AutoRefreshSettings{}, now)

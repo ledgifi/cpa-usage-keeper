@@ -20,7 +20,7 @@ import (
 
 // This interface cannot collect, probe, reset, or mutate provider state.
 type viewerQuotaCache interface {
-	GetCachedQuota(context.Context, quota.CacheRequest) (quota.CacheResponse, error)
+	PeekCachedQuota(context.Context, quota.CacheRequest) (quota.CacheResponse, error)
 	GetAutoRefreshSettings(context.Context) (quota.AutoRefreshSettings, error)
 }
 
@@ -110,7 +110,7 @@ func registerQuotasRoute(router gin.IRoutes, identities service.UsageIdentityPro
 		selected := make([]entities.UsageIdentity, 0, len(active))
 		indexes := make([]string, 0, len(active))
 		for _, identity := range active {
-			if identity.AuthType != entities.UsageIdentityAuthTypeAuthFile || identity.IsDeleted || (identity.Disabled != nil && *identity.Disabled) || strings.TrimSpace(identity.Identity) == "" {
+			if identity.AuthType != entities.UsageIdentityAuthTypeCredential || identity.IsDeleted || (identity.Disabled != nil && *identity.Disabled) || strings.TrimSpace(identity.Identity) == "" {
 				continue
 			}
 			selected = append(selected, identity)
@@ -123,7 +123,7 @@ func registerQuotasRoute(router gin.IRoutes, identities service.UsageIdentityPro
 		}
 		cache := quota.CacheResponse{}
 		if len(indexes) > 0 {
-			cache, err = provider.GetCachedQuota(c.Request.Context(), quota.CacheRequest{AuthIndexes: indexes})
+			cache, err = provider.PeekCachedQuota(c.Request.Context(), quota.CacheRequest{AuthIndexes: indexes})
 			if err != nil {
 				unavailable()
 				return

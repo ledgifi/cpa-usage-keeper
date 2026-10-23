@@ -20,6 +20,7 @@ export interface QuotaCacheState {
   quotaStateByAuthIndex: Record<string, QuotaState>
   applyRefreshUpdates: (states: Record<string, QuotaState>, quotas?: Record<string, UsageQuotaCheckResponse>) => void
   refreshQuotaCache: () => Promise<void>
+  resetQuotaCache: () => void
 }
 
 export function useQuotaCache({ enabled, authIndexes, onAuthRequired }: UseQuotaCacheOptions): QuotaCacheState {
@@ -44,6 +45,15 @@ export function useQuotaCache({ enabled, authIndexes, onAuthRequired }: UseQuota
   const authIndexesKey = buildQuotaCacheAuthIndexesKey(authIndexes)
   const stableAuthIndexes = useMemo(() => JSON.parse(authIndexesKey) as string[], [authIndexesKey])
   const previousAuthIndexesRef = useRef(stableAuthIndexes)
+
+  const resetQuotaCache = useCallback(() => {
+    // 费用重算结束时，先取消旧读取，再同步清除本页额度与错误展示。
+    requestControllerRef.current?.abort()
+    requestControllerRef.current = null
+    refreshRevisions.current = {}
+    workingAuthIndexes.current.clear()
+    setSnapshot({ quotas: {}, states: {} })
+  }, [])
 
   const refreshQuotaCache = useCallback(async () => {
     if (previousAuthIndexesRef.current !== stableAuthIndexes) {
@@ -110,7 +120,7 @@ export function useQuotaCache({ enabled, authIndexes, onAuthRequired }: UseQuota
       }
       setSnapshot((current) => applyQuotaUpdates(current, states, quotas, 'cache'))
     } catch (nextError) {
-      if (controller.signal.aborted) {
+      if (controller.signal.aborted || requestControllerRef.current !== controller) {
         return
       }
       if (nextError instanceof ApiError && nextError.status === 401) {
@@ -142,6 +152,7 @@ export function useQuotaCache({ enabled, authIndexes, onAuthRequired }: UseQuota
     quotaStateByAuthIndex: snapshot.states,
     applyRefreshUpdates,
     refreshQuotaCache,
+    resetQuotaCache,
   }
 }
 
@@ -166,7 +177,11 @@ function applyQuotaUpdates(current: QuotaSnapshot, states: Record<string, QuotaS
     if (next === current) {
       next = { quotas: { ...current.quotas }, states: { ...current.states } }
     }
-    next.states[authIndex] = state
+    if (state.refreshStatus || state.loading || state.error) {
+      next.states[authIndex] = state
+    } else {
+      delete next.states[authIndex]
+    }
     // 刷新中保留快照供结束后替换；明确失败或缓存消失时移除旧额度。
     if (quota) {
       next.quotas[authIndex] = quota

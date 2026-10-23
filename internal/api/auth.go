@@ -10,6 +10,7 @@ import (
 	"cpa-usage-keeper/internal/auth"
 	"cpa-usage-keeper/internal/entities"
 	"cpa-usage-keeper/internal/helper"
+	"cpa-usage-keeper/internal/oidc"
 	"cpa-usage-keeper/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -37,14 +38,14 @@ const (
 )
 
 type AuthConfig struct {
-	Enabled                         bool
-	LoginPassword                   string
-	SessionTTL                      time.Duration
-	BasePath                        string
-	FrameAncestorOrigins            []string
-	TrustedProxyCIDRs               []string
-	APIKeyViewerLocalRankingEnabled bool
-	APIKeyViewerQuotaEnabled        bool
+	Enabled                  bool
+	LoginPassword            string
+	SessionTTL               time.Duration
+	BasePath                 string
+	FrameAncestorOrigins     []string
+	TrustedProxyCIDRs        []string
+	OIDC                     *oidc.Client
+	APIKeyViewerQuotaEnabled bool
 }
 
 type authHandler struct {
@@ -63,16 +64,17 @@ type apiKeyLoginRequest struct {
 }
 
 type sessionResponse struct {
-	Authenticated bool                   `json:"authenticated"`
-	Role          auth.Role              `json:"role,omitempty"`
-	APIKey        *sessionAPIKeyResponse `json:"api_key,omitempty"`
+	Authenticated    bool                   `json:"authenticated"`
+	Role             auth.Role              `json:"role,omitempty"`
+	APIKey           *sessionAPIKeyResponse `json:"api_key,omitempty"`
+	OIDCLoginEnabled bool                   `json:"oidc_login_enabled"`
 }
 
 type sessionAPIKeyResponse struct {
-	DisplayKey          string `json:"display_key"`
-	Alias               string `json:"alias,omitempty"`
-	LocalRankingEnabled bool   `json:"local_ranking_enabled,omitempty"`
-	QuotaEnabled        bool   `json:"quota_enabled,omitempty"`
+	ID           string `json:"id"`
+	DisplayKey   string `json:"display_key"`
+	Alias        string `json:"alias,omitempty"`
+	QuotaEnabled bool   `json:"quota_enabled,omitempty"`
 }
 
 type loginResponse struct {
@@ -101,6 +103,14 @@ type resolvedSessionToken struct {
 }
 
 func NewAuthHandler(config AuthConfig, sessions *auth.SessionManager) *authHandler {
+	if sessions != nil {
+		policy := auth.OIDCSessionPolicy{}
+		if config.Enabled && config.OIDC != nil {
+			cfg := config.OIDC.Config()
+			policy = auth.OIDCSessionPolicy{Enabled: true, Issuer: cfg.Issuer, ClientID: cfg.ClientID, AllowedSubjects: cfg.AllowedSubjects}
+		}
+		sessions.SetOIDCPolicy(policy)
+	}
 	return &authHandler{
 		config:   config,
 		sessions: sessions,
@@ -124,6 +134,8 @@ func (h *authHandler) registerRoutes(router gin.IRoutes) {
 	router.POST("/login", h.login)
 	router.POST("/api-key-login", h.apiKeyLogin)
 	router.POST("/logout", h.logout)
+	router.POST("/oidc/login", h.oidcLogin)
+	router.GET("/oidc/callback", h.oidcCallback)
 }
 
 func (h *authHandler) middleware() gin.HandlerFunc {
@@ -214,7 +226,10 @@ func sessionRoleAllowed(role auth.Role, allowedRoles []auth.Role) bool {
 }
 
 func sessionMatchesResolvedSource(session auth.Session, resolved resolvedSessionToken) bool {
-	return auth.NormalizeSessionSource(session.Source) == resolved.Source
+	if resolved.CookieKind == sessionCookieKindEmbed {
+		return session.Source == auth.SessionSourceEmbed
+	}
+	return resolved.CookieKind == sessionCookieKindStandard && resolved.Transport == sessionTokenTransportCookie && (session.Source == auth.SessionSourceStandard || session.Source == auth.SessionSourceOIDC)
 }
 
 func (h *authHandler) resolveValidSession(c *gin.Context) (resolvedSessionToken, auth.Session, bool) {
@@ -242,32 +257,34 @@ func (h *authHandler) resolveValidSession(c *gin.Context) (resolvedSessionToken,
 }
 
 func (h *authHandler) getSession(c *gin.Context) {
+	setNoStoreHeaders(c)
+	oidcEnabled := h != nil && h.config.Enabled && h.config.OIDC != nil && !isOIDCEmbedRequest(c)
 	if h == nil || !h.config.Enabled {
 		c.JSON(http.StatusOK, sessionResponse{Authenticated: true, Role: auth.RoleAdmin})
 		return
 	}
 	if h.sessions == nil {
-		c.JSON(http.StatusOK, sessionResponse{Authenticated: false})
+		c.JSON(http.StatusOK, sessionResponse{Authenticated: false, OIDCLoginEnabled: oidcEnabled})
 		return
 	}
 
 	resolved, session, ok := h.resolveValidSession(c)
 	if !ok {
-		c.JSON(http.StatusOK, sessionResponse{Authenticated: false})
+		c.JSON(http.StatusOK, sessionResponse{Authenticated: false, OIDCLoginEnabled: oidcEnabled})
 		return
 	}
-	response := sessionResponse{Authenticated: true, Role: session.Role}
+	response := sessionResponse{Authenticated: true, Role: session.Role, OIDCLoginEnabled: oidcEnabled}
 	if session.Role == auth.RoleAPIKeyViewer {
 		row, ok := h.activeViewerAPIKey(c, resolved, session)
 		if !ok {
-			c.JSON(http.StatusOK, sessionResponse{Authenticated: false})
+			c.JSON(http.StatusOK, sessionResponse{Authenticated: false, OIDCLoginEnabled: oidcEnabled})
 			return
 		}
 		response.APIKey = &sessionAPIKeyResponse{
-			DisplayKey:          helper.CPAAPIKeyMaskedDisplayKey(row),
-			Alias:               row.KeyAlias,
-			LocalRankingEnabled: h.config.APIKeyViewerLocalRankingEnabled,
-			QuotaEnabled:        h.config.APIKeyViewerQuotaEnabled,
+			ID:           strconv.FormatInt(row.ID, 10),
+			DisplayKey:   helper.CPAAPIKeyMaskedDisplayKey(row),
+			Alias:        row.KeyAlias,
+			QuotaEnabled: h.config.APIKeyViewerQuotaEnabled,
 		}
 	}
 	c.JSON(http.StatusOK, response)
@@ -386,6 +403,10 @@ func (h *authHandler) logout(c *gin.Context) {
 
 func (h *authHandler) allowLoginAttempt(c *gin.Context, key string) bool {
 	allowed, retryAfter := h.loginAttempts.Allow(key)
+	return writeLoginAttemptResult(c, allowed, retryAfter)
+}
+
+func writeLoginAttemptResult(c *gin.Context, allowed bool, retryAfter time.Duration) bool {
 	if allowed {
 		return true
 	}

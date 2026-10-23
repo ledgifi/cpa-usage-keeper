@@ -25,7 +25,7 @@ beforeEach(async () => {
   await i18n.changeLanguage('en');
   localStorage.clear();
   window.__APP_BASE_PATH__ = '/cpa';
-  window.history.replaceState(null, '', '/cpa/auth-files');
+  window.history.replaceState(null, '', '/cpa/credentials');
   vi.clearAllMocks();
   api.fetchUsageIdentitiesPage.mockResolvedValue({ identities: [{ id: '1', identity: 'admin-auth', type: 'codex', auth_type: 1, name: 'Admin account', is_deleted: false } as UsageIdentity], total_count: 1, total_pages: 1, type_counts: [{ type: 'codex', count: 1 }] });
   api.fetchUsageQuotaCache.mockResolvedValue({ server_time: new Date(now).toISOString(), scheduled_refresh_enabled: false, items: [{ auth_index: 'admin-auth', status: 'completed', display_status: 'cached', refreshed_at: new Date(now).toISOString(), quota: { id: 'admin-auth', quota: [{ key: 'rate_limit.secondary_window', label: 'Weekly', remainingFraction: 0.5, resetAfterSeconds: 3, window: { seconds: 604800 } }] } }] });
@@ -38,11 +38,11 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-it('extends Auth Files with the shared meters and windows, retaining admin navigation and actions', async () => {
+it('extends Credentials with the shared meters and windows, retaining admin navigation and actions', async () => {
   await act(async () => root.render(<UsagePage />));
   expect(container.querySelector('[data-keeper-page="usage"]')).not.toBeNull();
   expect(container.querySelector('[data-keeper-page="key-viewer"]')).toBeNull();
-  expect(container.querySelector('a[href^="/cpa/auth-files"]')).not.toBeNull();
+  expect(container.querySelector('a[href^="/cpa/credentials"]')).not.toBeNull();
   expect(container.querySelector('a[href="/cpa/subscriptions"]')).toBeNull();
   expect(container.querySelector('a[href="/cpa/quotas"]')).toBeNull();
   expect(container.querySelectorAll('[data-quota-meter]')).toHaveLength(1);

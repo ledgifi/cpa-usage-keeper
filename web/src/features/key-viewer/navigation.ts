@@ -1,11 +1,10 @@
-export type KeyViewerPage = 'overview' | 'realtime' | 'analysis' | 'ranking' | 'quota';
-export type KeyViewerPath = '/key-overview' | '/key-realtime' | '/key-analysis' | '/key-ranking' | '/quotas';
+export type KeyViewerPage = 'overview' | 'realtime' | 'analysis' | 'quota';
+export type KeyViewerPath = '/key-overview' | '/key-realtime' | '/key-analysis' | '/quotas';
 
 export const KEY_VIEWER_PAGE_PATHS: Record<KeyViewerPage, KeyViewerPath> = {
   overview: '/key-overview',
   realtime: '/key-realtime',
   analysis: '/key-analysis',
-  ranking: '/key-ranking',
   quota: '/quotas',
 };
 

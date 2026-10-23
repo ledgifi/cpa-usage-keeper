@@ -29,7 +29,7 @@ type viewerCacheStub struct {
 	err      error
 }
 
-func (s *viewerCacheStub) GetCachedQuota(_ context.Context, r quota.CacheRequest) (quota.CacheResponse, error) {
+func (s *viewerCacheStub) PeekCachedQuota(_ context.Context, r quota.CacheRequest) (quota.CacheResponse, error) {
 	s.request = r
 	s.reads++
 	return s.cache, s.err
@@ -38,8 +38,25 @@ func (s *viewerCacheStub) GetAutoRefreshSettings(context.Context) (quota.AutoRef
 	return s.settings, s.err
 }
 
+type keyViewerQuotaKeyStub struct {
+	service.CPAAPIKeyProvider
+	row entities.CPAAPIKey
+}
+
+func (s *keyViewerQuotaKeyStub) FindActiveCPAAPIKeyByID(_ context.Context, id int64) (entities.CPAAPIKey, error) {
+	if id != s.row.ID {
+		return entities.CPAAPIKey{}, service.ErrInvalidID
+	}
+	return s.row, nil
+}
+func viewerQuotaRequest(method, target, token string) *http.Request {
+	request := httptest.NewRequest(method, target, nil)
+	request.AddCookie(&http.Cookie{Name: "cpa_usage_keeper_session", Value: token})
+	return request
+}
+
 type quotaViewerKeys struct {
-	keyViewerRankingKeyStub
+	keyViewerQuotaKeyStub
 	revoked bool
 }
 
@@ -47,9 +64,9 @@ func (s *quotaViewerKeys) FindActiveCPAAPIKeyByID(ctx context.Context, id int64)
 	if s.revoked {
 		return entities.CPAAPIKey{}, service.ErrInvalidID
 	}
-	return s.keyViewerRankingKeyStub.FindActiveCPAAPIKeyByID(ctx, id)
+	return s.keyViewerQuotaKeyStub.FindActiveCPAAPIKeyByID(ctx, id)
 }
-func quotaViewerRouter(t *testing.T, enabled bool, identities []entities.UsageIdentity, cache *viewerCacheStub) (http.Handler, string, string, *quotaViewerKeys) {
+func quotaViewerRouter(t *testing.T, enabled bool, identities []entities.UsageIdentity, cache *viewerCacheStub, gates ...*service.CostReadGate) (http.Handler, string, string, *quotaViewerKeys) {
 	t.Helper()
 	sessions := auth.NewSessionManager(time.Hour)
 	viewer, _, err := sessions.CreateAPIKeyViewer(42)
@@ -60,14 +77,18 @@ func quotaViewerRouter(t *testing.T, enabled bool, identities []entities.UsageId
 	if err != nil {
 		t.Fatal(err)
 	}
-	keys := &quotaViewerKeys{keyViewerRankingKeyStub: keyViewerRankingKeyStub{row: entities.CPAAPIKey{ID: 42, APIKey: "private-teammate-key"}}}
+	keys := &quotaViewerKeys{keyViewerQuotaKeyStub: keyViewerQuotaKeyStub{row: entities.CPAAPIKey{ID: 42, APIKey: "private-teammate-key"}}}
 	config := AuthConfig{Enabled: true, APIKeyViewerQuotaEnabled: enabled}
-	router := NewRouter(nil, nil, nil, nil, config, NewAuthHandler(config, sessions), "", OptionalProviders{CPAAPIKeys: keys, Quota: cache, UsageIdentity: identityMetadataStub{items: identities}})
+	providers := OptionalProviders{CPAAPIKeys: keys, Quota: cache, UsageIdentity: identityMetadataStub{items: identities}}
+	if len(gates) > 0 {
+		providers.CostReadGate = gates[0]
+	}
+	router := NewRouter(nil, nil, nil, nil, config, NewAuthHandler(config, sessions), "", providers)
 	return router, viewer, admin, keys
 }
 func quotaGet(router http.Handler, token string) *httptest.ResponseRecorder {
 	response := httptest.NewRecorder()
-	router.ServeHTTP(response, viewerRankingRequest("GET", "/api/v1/quotas?auth_indexes=unselected-secret", token))
+	router.ServeHTTP(response, viewerQuotaRequest("GET", "/api/v1/quotas?auth_indexes=unselected-secret", token))
 	return response
 }
 func TestKeyQuotaAuthorization(t *testing.T) {
@@ -91,7 +112,7 @@ func TestKeyQuotaAuthorization(t *testing.T) {
 			}
 		}
 		session := httptest.NewRecorder()
-		router.ServeHTTP(session, viewerRankingRequest("GET", "/api/v1/auth/session", viewer))
+		router.ServeHTTP(session, viewerQuotaRequest("GET", "/api/v1/auth/session", viewer))
 		if strings.Contains(session.Body.String(), `"quota_enabled":true`) != enabled {
 			t.Fatalf("incorrect capability %s", session.Body.String())
 		}
@@ -112,9 +133,12 @@ func TestKeyQuotaCannotReachAdministratorRoutes(t *testing.T) {
 	cache := &viewerCacheStub{}
 	router, viewer, admin, _ := quotaViewerRouter(t, true, nil, cache)
 	for _, route := range []struct{ method, path string }{
-		{"POST", "/quota/refresh"}, {"POST", "/quota/reset"}, {"GET", "/quota/reset-credits/auth-secret"}, {"POST", "/quota/cache"}, {"GET", "/quota/refresh/auth-secret"}, {"POST", "/quota/inspection"}, {"GET", "/quota/inspection"}, {"GET", "/quota/auto-refresh/settings"}, {"PUT", "/quota/auto-refresh/settings"}, {"DELETE", "/quota/history/auth-secret/cycles/1"}, {"PATCH", "/auth-files/auth-secret/status"}, {"DELETE", "/auth-files"}, {"GET", "/usage/identities"}, {"GET", "/usage/api-keys"},
+		{"POST", "/quota/refresh"}, {"POST", "/quota/reset"}, {"GET", "/quota/reset-credits/auth-secret"}, {"POST", "/quota/cache"}, {"GET", "/quota/refresh/auth-secret"}, {"POST", "/quota/inspection"}, {"GET", "/quota/inspection"}, {"GET", "/quota/auto-refresh/settings"}, {"PUT", "/quota/auto-refresh/settings"}, {"DELETE", "/quota/history/auth-secret/cycles/1"}, {"PATCH", "/credentials/auth-secret/status"}, {"DELETE", "/credentials"}, {"GET", "/usage/identities"}, {"GET", "/usage/api-keys"},
+		{"PATCH", "/credentials/status"}, {"PATCH", "/credentials/auth-secret/priority"}, {"PATCH", "/ai-providers/auth-secret/status"}, {"PATCH", "/ai-providers/auth-secret/priority"},
+		{"GET", "/pricing/models"}, {"PUT", "/pricing/models"}, {"DELETE", "/pricing/models"}, {"POST", "/pricing/recalculations"}, {"GET", "/pricing/recalculations/current"}, {"GET", "/pricing/sync/fetch"}, {"POST", "/pricing/sync/apply"},
+		{"GET", "/auth/sessions"}, {"PATCH", "/auth/sessions/other-session"}, {"DELETE", "/auth/sessions/other-session"},
 	} {
-		r := viewerRankingRequest(route.method, "/api/v1"+route.path, viewer)
+		r := viewerQuotaRequest(route.method, "/api/v1"+route.path, viewer)
 		r.Header.Set("X-CPA-Usage-Keeper-Request", "fetch")
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, r)
@@ -122,7 +146,7 @@ func TestKeyQuotaCannotReachAdministratorRoutes(t *testing.T) {
 			t.Fatalf("%s %s status=%d", route.method, route.path, response.Code)
 		}
 	}
-	r := viewerRankingRequest("GET", "/api/v1/quota/auto-refresh/settings", admin)
+	r := viewerQuotaRequest("GET", "/api/v1/quota/auto-refresh/settings", admin)
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, r)
 	if response.Code != http.StatusOK {
@@ -130,6 +154,25 @@ func TestKeyQuotaCannotReachAdministratorRoutes(t *testing.T) {
 	}
 	if cache.reads != 0 {
 		t.Fatal("unauthorized request reached cache")
+	}
+}
+
+func TestKeyQuotaSnapshotRemainsReadableDuringCostRecalculation(t *testing.T) {
+	gate := service.NewCostReadGate()
+	resume, err := gate.BlockAndDrain(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(resume)
+	cache := &viewerCacheStub{}
+	router, viewer, admin, _ := quotaViewerRouter(t, true, []entities.UsageIdentity{{ID: 1, Identity: "fixture", AuthType: entities.UsageIdentityAuthTypeCredential}}, cache, gate)
+	for _, token := range []string{viewer, admin} {
+		if response := quotaGet(router, token); response.Code != http.StatusOK {
+			t.Fatalf("display-only quota snapshot was blocked: %d %s", response.Code, response.Body.String())
+		}
+	}
+	if cache.reads != 2 {
+		t.Fatalf("expected snapshot reads, got %d", cache.reads)
 	}
 }
 
@@ -161,7 +204,7 @@ func decodeQuota(t *testing.T, response *httptest.ResponseRecorder) displayRespo
 func TestKeyQuotaSafeSharedCacheProjection(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	secret := "DO_NOT_EXPOSE-user@example.com-sk-secret-auth.json"
-	active := entities.UsageIdentity{ID: 17, Type: "codex", AuthType: entities.UsageIdentityAuthTypeAuthFile, Identity: "secret-index", Name: secret, Alias: new(secret), FileName: new(secret), FilePath: new(secret), AccountID: new(secret), Note: new(secret), PlanType: new(secret)}
+	active := entities.UsageIdentity{ID: 17, Type: "codex", AuthType: entities.UsageIdentityAuthTypeCredential, Identity: "secret-index", Name: secret, Alias: new(secret), FileName: new(secret), FilePath: new(secret), AccountID: new(secret), Note: new(secret), PlanType: new(secret)}
 	disabled := active
 	disabled.ID = 18
 	disabled.Identity = "disabled"
@@ -233,7 +276,7 @@ func TestKeyQuotaFreshnessAndUnavailable(t *testing.T) {
 	now := time.Now().UTC()
 	recent := now.Add(-time.Minute)
 	old := now.Add(-2 * time.Hour)
-	identity := entities.UsageIdentity{ID: 1, Type: "antigravity", Identity: "fixture", AuthType: entities.UsageIdentityAuthTypeAuthFile}
+	identity := entities.UsageIdentity{ID: 1, Type: "antigravity", Identity: "fixture", AuthType: entities.UsageIdentityAuthTypeCredential}
 	for _, tc := range []struct {
 		name     string
 		settings quota.AutoRefreshSettings
