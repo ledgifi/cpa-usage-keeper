@@ -81,8 +81,7 @@ export function QuotasPage({ apiKey, onNavigate, onAuthRequired }: {
       {loading && !data && <p role="status">{t('common.loading')}</p>}
       {!loading && data?.accounts.length === 0 && <p>{t('key_quota.empty')}</p>}
       {accounts.length > 0 && <>
-        <CredentialSectionShell title={t('usage_stats.credentials_title')} subtitle={t('key_quota.shared')}
-          countLabel={String(accounts.length)}>
+        <CredentialSectionShell title={t('usage_stats.credentials_title')} subtitle={t('key_quota.shared')}>
           {orderedAccounts.map((account) => {
             const status = quotaDisplayStatus(account, now);
             const badge = account.subscription && resolveCredentialSubscriptionBadge({ provider: account.provider, plan: account.subscription.plan, tierName: account.subscription.tier });

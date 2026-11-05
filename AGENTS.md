@@ -1,6 +1,6 @@
 # LedgiFi Keeper patch
 
-Upstream base: v2.0.1 (`5604768d352a1a85dd5c087b4e85bd657a159a02`).
+Upstream base: v2.0.3 (`9db74cfc380d11064af80cf1626efd6e3d068217`).
 See [feature scope and maintenance](docs/api-key-viewer-quotas.md).
 
 Keep this patch narrow: shared quota presentation in existing admin Credentials,
@@ -15,7 +15,8 @@ raw provider errors or other teammates' keys. Viewer reads must never collect,
 probe or mutate quota state. Test authorization with separate fixture sessions.
 
 Keep feature logic in the quota presentation components and allowlisted viewer
-API; keep existing Credentials, routing and session integration to small adapters.
+API; use the feature-owned admin presentation and cache-response adapters to
+keep existing Credentials, routing and session integration small.
 Collection, provider parsing, pricing, storage and authentication architecture
 follow upstream. Retain the documented presence and read-only cache safeguards
 until upstream supplies equivalent behavior. Avoid generalizing these hooks.
