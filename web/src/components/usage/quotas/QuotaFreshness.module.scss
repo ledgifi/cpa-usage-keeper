@@ -2,3 +2,4 @@
 .status { display: inline-flex; align-items: center; gap: 6px; }
 .status[data-status='stale'] { color: var(--warning-color); }
 .status[data-status='unavailable'] { color: var(--danger-color); }
+.notice { color: var(--warning-color); font-size: 12px; line-height: 1.6; margin: 0; }

@@ -1,7 +1,7 @@
 # Cached quota visualization
 
-LedgiFi patch base: upstream v2.0.1,
-`5604768d352a1a85dd5c087b4e85bd657a159a02` (October 23, 2026).
+LedgiFi patch base: upstream v2.0.3,
+`9db74cfc380d11064af80cf1626efd6e3d068217` (October 30, 2026).
 The original v1 release was `v1.15.11-ledgifi.1`; the v2 integration preserves
 that history and merges the stable upstream tag.
 The safe endpoint adapts only the quota portion of reference commit
@@ -159,7 +159,7 @@ and the repository README for the upstream migration behavior.
 Source and public image live under `ledgifi/cpa-usage-keeper`. Keep upstream
 history and a small maintained patch on `main`; the `upstream` remote tracks
 `Willxup/cpa-usage-keeper`. Release tags use `v<upstream>-ledgifi.<revision>`
-(the next v2 release is `v2.0.1-ledgifi.1`). Use the existing Dockerfile and
+(for this base, `v2.0.3-ledgifi.1`). Use the existing Dockerfile and
 upstream release workflow, targeting only `linux/amd64` for the internal Unraid
 host. The shared release policy accepts the LedgiFi revision suffix and still
 requires the tagged v2 commit to be on `origin/main`. The release workflow runs
@@ -179,15 +179,19 @@ the proxy; verify its v8 compatibility before deploying Keeper v2.
 ## Maintenance and verification
 
 Keep presentation changes in `web/src/components/usage/quotas/`. The existing
-Credentials component uses a small display adapter in `credentialViewModels.ts`;
+Credentials views use `quotas/credentialQuotaPresentation.tsx` as their display
+adapter;
 `QuotasPage.tsx` reads only the safe endpoint. Backend integration is the default-off
 config/session capability, route registration, `internal/api/key_quota.go`, and
 freshness metadata added to the existing admin cache response. Scheduler deadline
-calculation is reused. Viewer reads use `PeekCachedQuota`, which omits expired
+calculation is reused. The admin cache handler adds metadata through
+`internal/api/quota_display.go`; viewer route middleware and the allowlisted
+projection stay in `internal/api/key_quota.go`. Viewer reads use
+`PeekCachedQuota`, which omits expired
 snapshots without deleting task entries or advancing cleanup deadlines. Existing
 admin cache reads retain upstream maintenance behavior. The viewer projection
 omits local costs, so its snapshot route remains readable during historical
-cost recalculation. Provider parsers and types are unchanged from upstream v2.0.1.
+cost recalculation. Provider parsers and types are unchanged from upstream v2.0.3.
 Only Claude/Codex window normalization consumes existing presence flags for
 missing percentages and explicit zero resets; other normalization is unchanged.
 
@@ -195,7 +199,9 @@ missing percentages and explicit zero resets; other normalization is unchanged.
 
 - Keep shared meters, freshness, countdowns and timeline logic in
   `web/src/components/usage/quotas/`. The viewer page composes these components;
-  existing Credentials views use `credentialViewModels.ts` as their display
+  existing Credentials views use `quotas/credentialQuotaPresentation.tsx` as their
+  display adapter. Keep normalized view-model fields in `credentialViewModels.ts`;
+  projection, freshness badges and timeline composition belong in the feature
   adapter. Limit edits to Credentials views and cache hooks to rendering and
   forwarding display metadata. These upstream integration points deserve close
   review during merges.
@@ -213,6 +219,32 @@ missing percentages and explicit zero resets; other normalization is unchanged.
   LedgiFi tag acceptance, amd64 target and binary/Homebrew restriction. Maintain
   deployment records in the private operations repository.
 
+### v2.0.3 integration
+
+The stable sync retains upstream history and the token-accounting, service-tier,
+quota-recovery and credential-write consistency fixes. It adopts upstream's
+current `CredentialSectionShell` interface by removing the retired `countLabel`
+prop from the viewer page. Docker publishing retains the amd64-only target and
+upstream's `pull: true` base-image refresh. The database migrations for effective
+service tiers and plugin API-key sources are upstream-owned; this patch adds no
+schema. Protect the database before deploying, and treat an image rollback and
+a database restore as separate operations.
+
+Keep future merges focused on these integration points:
+
+| Upstream integration | Feature-owned implementation | Recheck on sync |
+| --- | --- | --- |
+| Credential rows and drawer | `quotas/credentialQuotaPresentation.tsx`, shared meters/timeline | Upstream props and normalized fields; both views retain unknown/zero, stale and reset semantics. |
+| Admin cache response and viewer route registration | `internal/api/quota_display.go`, `internal/api/key_quota.go` | Cached metadata stays additive; active-key authorization, default-off capability and DTO allowlist remain enforced. |
+| Quota cache and normalization | `PeekCachedQuota`, presence checks, scheduler-based freshness | Retire each safeguard only when upstream supplies equivalent behavior and its existing regression tests pass against that behavior. |
+
+In v2.0.3, upstream cache reads still prune task state and zero-valued normalized
+Claude/Codex percentages still lose presence. Both local safeguards remain
+necessary. Keep upstream collection, provider parsing, pricing, storage and
+authentication lifecycle intact; prefer current upstream props and hooks over
+compatibility wrappers. Review new Key Viewer restrictions when upstream adds
+key sources or changes active-key eligibility.
+
 ### Upstream sync checklist
 
 1. Start with a clean checkout, fetch upstream and select a reviewed stable tag.
@@ -222,8 +254,8 @@ missing percentages and explicit zero resets; other normalization is unchanged.
    current APIs, names and lifecycle, then reconnect the small integration hooks
    above. Remove custom code that upstream now supplies.
 3. Review the complete customization against the target tag. While the merge is
-   staged, use `git diff --cached --stat v2.0.1` and
-   `git diff --cached v2.0.1`; after committing, use `git diff v2.0.1 HEAD`.
+   staged, use `git diff --cached --stat v2.0.3` and
+   `git diff --cached v2.0.3`; after committing, use `git diff v2.0.3 HEAD`.
    Substitute the reviewed tag on later upgrades. Every remaining difference
    should serve quota presentation, safe viewer access, its regression coverage,
    maintenance documentation or the existing fork publishing adjustments.

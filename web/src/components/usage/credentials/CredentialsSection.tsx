@@ -11,7 +11,7 @@ import { PortalTooltip, usePortalTooltip } from '@/components/ui/PortalTooltip'
 import quotaCostIcon from '@/assets/icons/quota-cost.svg'
 import quotaTokenIcon from '@/assets/icons/quota-token.svg'
 import styles from './CredentialSections.module.scss'
-import { credentialQuotaAccount, displayQuotaRow, formatCredentialTimestamp, type CredentialRow, type DisplayQuota } from './credentialViewModels'
+import { formatCredentialTimestamp, type CredentialRow, type DisplayQuota } from './credentialViewModels'
 import { deleteCredentials, fetchClaudeResetGrants, fetchQuotaAutoRefreshSettings, fetchUsageQuotaResetCredits, setCredentialsDisabled, updateQuotaAutoRefreshSettings, type UsageIdentityPageSort } from '@/lib/api'
 import type { ClaudeResetGrantsResponse, QuotaAutoRefreshScheduleUnit, QuotaAutoRefreshSettings, UsageQuotaInspectionResult, UsageQuotaInspectionResultStatus, UsageQuotaInspectionStatusResponse, UsageQuotaResetCreditsResponse, UsageQuotaResetResponse } from '@/lib/types'
 import { CredentialAliasEditor } from './CredentialAliasEditor'
@@ -23,8 +23,7 @@ import { CredentialPriorityEditor } from './CredentialPriorityEditor'
 import { ProviderBrandIcon, providerBrandIconKey } from '@/components/ProviderBrandIcon'
 import { CredentialStatusToggle } from './CredentialStatusToggle'
 import { QuotaMeter } from '../quotas/QuotaMeter'
-import { QuotaFreshness } from '../quotas/QuotaFreshness'
-import { QuotaWindowTimeline } from '../quotas/QuotaWindowTimeline'
+import { CredentialQuotaFreshness, CredentialQuotaTimeline, credentialQuotaAccount, displayQuotaRow } from '../quotas/credentialQuotaPresentation'
 import { quotaDisplayStatus } from '../quotas/quotaDisplay'
 import { useQuotaClock } from '../quotas/useQuotaClock'
 
@@ -215,7 +214,6 @@ export function CredentialsSection({ quotaScheduledRefreshEnabled, quotaClockOff
       <CredentialSectionShell
         title={t('usage_stats.credentials_title')}
         subtitle={t('usage_stats.credentials_subtitle')}
-        countLabel={t('usage_stats.credentials_count', { count: total })}
         titleExtra={(
           <div className={styles.credentialsTitleControls}>
             <label className={styles.credentialActiveOnlySwitch}>
@@ -275,7 +273,6 @@ export function CredentialsSection({ quotaScheduledRefreshEnabled, quotaClockOff
         const resetCredits = (isClaude ? row.claudeResetGrants?.availableCount : row.quotaResetCreditsAvailableCount) ?? 0
         const canResetQuota = resetCredits > 0 && !row.identity.is_deleted && !rowRefreshing && !row.quotaResetting
         const rowKey = row.identity.id || row.identity.identity
-        const quotaAccount = credentialQuotaAccount(row)
         const rowExpiryTooltipText = row.expiresAtLabel
           ? t('usage_stats.credentials_expiry_tooltip', { value: row.expiresAtLabel })
           : ''
@@ -359,7 +356,7 @@ export function CredentialsSection({ quotaScheduledRefreshEnabled, quotaClockOff
                   readOnly={row.identity.is_deleted}
                   onSave={onSavePriority ? (priority) => onSavePriority(row.identity.id || row.identity.identity, row.identity.identity, priority) : undefined}
                 />
-                {!showHealthMode && <QuotaFreshness status={quotaDisplayStatus(quotaAccount, now)} updatedAt={quotaAccount.updated_at} now={now} />}
+                {!showHealthMode && <CredentialQuotaFreshness row={row} now={now} />}
               </span>
             ) : undefined}
             badges={null}
@@ -429,10 +426,7 @@ export function CredentialsSection({ quotaScheduledRefreshEnabled, quotaClockOff
         onSortChange={(nextSort) => onSortChange(nextSort as UsageIdentityPageSort)}
       />
       </CredentialSectionShell>
-      {!showHealthMode && <>
-        {quotaScheduledRefreshEnabled === false && <p className={styles.credentialQuotaNotice}>{t('key_quota.schedule_disabled')}</p>}
-        <QuotaWindowTimeline accounts={rows.filter((row) => !row.identity.is_deleted && row.identity.disabled !== true).map(credentialQuotaAccount)} now={now} />
-      </>}
+      {!showHealthMode && <CredentialQuotaTimeline rows={rows} now={now} scheduledRefreshEnabled={quotaScheduledRefreshEnabled} />}
       {expiryTooltip && activeExpiryTooltipText && typeof document !== 'undefined'
         ? createPortal(
             <div

@@ -9,8 +9,7 @@ import { ApiError, fetchErrorEvents, fetchUsageEvents, isCostsBusy } from '@/lib
 import type { ErrorEvent, UsageEvent, UsageEventRequestLogResponse } from '@/lib/types'
 import { CredentialQuotaPanel } from './CredentialsSection'
 import { useQuotaClock } from '../quotas/useQuotaClock'
-import { QuotaFreshness } from '../quotas/QuotaFreshness'
-import { quotaDisplayStatus } from '../quotas/quotaDisplay'
+import { CredentialQuotaFreshness } from '../quotas/credentialQuotaPresentation'
 import { CredentialErrorEventsList } from './CredentialErrorEventsList'
 import { CredentialHealthPanel } from './CredentialHealthPanel'
 import { CredentialPriorityBadge, cacheReadRateTone, credentialToneClassName, formatCredentialNumber, formatCredentialPercent, successRateTone } from './CredentialSectionShell'
@@ -18,7 +17,7 @@ import { CredentialSubscriptionBadge } from './CredentialSubscriptionBadge'
 import { CredentialKimiSiteBadge } from './CredentialKimiSiteBadge'
 import { CredentialRequestEventsList } from './CredentialRequestEventsList'
 import { CodexQuotaHistoryPanel } from './CodexQuotaHistoryPanel'
-import { credentialQuotaAccount, formatCredentialTimestamp, type CredentialDetailSelection } from './credentialViewModels'
+import { formatCredentialTimestamp, type CredentialDetailSelection } from './credentialViewModels'
 import styles from './CredentialDetailDrawer.module.scss'
 import credentialStyles from './CredentialSections.module.scss'
 
@@ -419,7 +418,6 @@ export function CredentialDetailDrawer({
 
   if (!selection || !row || !identity) return null
 
-  const quotaAccount = selection.kind === 'credential' ? credentialQuotaAccount(selection.row) : null
   const title = (
     <div className={styles.drawerTitle}>
       <ProviderBrandIcon providerType={identity.type} size={36} ariaLabel={row.typeLabel} />
@@ -444,7 +442,7 @@ export function CredentialDetailDrawer({
               ? t('usage_stats.credentials_detail_disabled')
               : t('usage_stats.credentials_detail_enabled')}
         </span>
-        {quotaAccount && <QuotaFreshness status={quotaDisplayStatus(quotaAccount, quotaNow)} updatedAt={quotaAccount.updated_at} now={quotaNow} />}
+        {selection.kind === 'credential' && <CredentialQuotaFreshness row={selection.row} now={quotaNow} />}
       </div>
     </div>
   )

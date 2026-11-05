@@ -1,4 +1,4 @@
-import type { ClaudeResetGrantStatus, UsageCredentialHealth, UsageIdentity, UsageQuotaCheckResponse, UsageQuotaRow, ViewerQuotaAccount, ViewerQuotaRow } from '@/lib/types'
+import type { ClaudeResetGrantStatus, UsageCredentialHealth, UsageIdentity, UsageQuotaCheckResponse, UsageQuotaRow, ViewerQuotaAccount } from '@/lib/types'
 import { calculateCacheReadRate, formatCompactTokenValue } from '@/utils/usage'
 import { resolveCredentialSubscriptionBadge, type SubscriptionBadgeModel } from './credentialSubscription'
 
@@ -594,23 +594,4 @@ function relativeQuotaReset(seconds?: number, observedAt?: string): string | und
   const observed = Date.parse(observedAt ?? '')
   return seconds != null && Number.isFinite(seconds) && Math.abs(seconds) <= 366 * 86400 && Number.isFinite(observed)
     ? new Date(observed + seconds * 1000).toISOString() : undefined
-}
-
-// Admin presentation uses its existing identity/cache data. Never pass these
-// rows to a viewer; the viewer receives its dedicated server-side projection.
-export function credentialQuotaAccount(row: CredentialRow): ViewerQuotaAccount {
-  const unavailable = row.quotaLoading || row.quotaError || row.refreshStatus === 'queued' || row.refreshStatus === 'running' || row.refreshStatus === 'failed' || row.displayQuotas.length === 0
-  return {
-    id: row.identity.id || row.identity.identity,
-    label: row.displayName,
-    provider: row.identity.type,
-    status: unavailable ? 'unavailable' : row.quotaCache?.status ?? 'cached',
-    updated_at: row.quotaCache?.updated_at,
-    fresh_until: row.quotaCache?.fresh_until,
-    rows: unavailable ? [] : row.displayQuotas.map(displayQuotaRow),
-  }
-}
-
-export function displayQuotaRow(quota: DisplayQuota): ViewerQuotaRow {
-  return { id: quota.key, label: quota.label, limit_reached: quota.limitReached, remaining_percent: quota.barPercent ?? undefined, reset_at: quota.resetText, window_seconds: quota.windowSeconds }
 }

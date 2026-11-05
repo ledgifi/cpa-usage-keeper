@@ -129,6 +129,25 @@ func TestKeyQuotaAuthorization(t *testing.T) {
 		t.Fatalf("anonymous auth-disabled status=%d", response.Code)
 	}
 }
+func TestKeyQuotaRejectsPluginIdentitySessions(t *testing.T) {
+	cache := &viewerCacheStub{}
+	identities := []entities.UsageIdentity{{ID: 1, Identity: "fixture-account", AuthType: entities.UsageIdentityAuthTypeCredential}}
+	router, viewer, _, keys := quotaViewerRouter(t, true, identities, cache)
+	// Upstream v2.0.3 can retain plugin identities for accounting, but they must
+	// never gain our shared-quota capability through an existing viewer session.
+	keys.row.SourceType = entities.CPAAPIKeySourcePlugin
+	if response := quotaGet(router, viewer); response.Code != http.StatusUnauthorized {
+		t.Fatalf("plugin identity reached viewer quotas: %d %s", response.Code, response.Body.String())
+	}
+	if cache.reads != 0 {
+		t.Fatal("plugin session reached shared quota data")
+	}
+	keys.row.SourceType = entities.CPAAPIKeySourceNative
+	if response := quotaGet(router, viewer); response.Code != http.StatusUnauthorized {
+		t.Fatalf("upstream session revocation was bypassed: %d", response.Code)
+	}
+}
+
 func TestKeyQuotaCannotReachAdministratorRoutes(t *testing.T) {
 	cache := &viewerCacheStub{}
 	router, viewer, admin, _ := quotaViewerRouter(t, true, nil, cache)

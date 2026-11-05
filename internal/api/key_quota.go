@@ -76,8 +76,17 @@ func viewerProviderName(identity entities.UsageIdentity) string {
 	}
 }
 
-func registerQuotasRoute(router gin.IRoutes, identities service.UsageIdentityProvider, provider viewerQuotaCache, h *authHandler) {
-	router.GET("/quotas", func(c *gin.Context) {
+func registerQuotasRoute(router gin.IRouter, identities service.UsageIdentityProvider, provider viewerQuotaCache, h *authHandler) {
+	protected := router.Group("")
+	protected.Use(func(c *gin.Context) {
+		value, _ := c.Get(authSessionContextKey)
+		if session, ok := value.(auth.Session); ok && session.Role == auth.RoleAdmin {
+			c.Next()
+			return
+		}
+		h.activeAPIKeyViewerMiddleware()(c)
+	})
+	protected.GET("/quotas", func(c *gin.Context) {
 		setNoStoreHeaders(c)
 		// Require a real session even when stock auth middleware is disabled.
 		value, _ := c.Get(authSessionContextKey)
