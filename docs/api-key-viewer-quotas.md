@@ -230,6 +230,12 @@ service tiers and plugin API-key sources are upstream-owned; this patch adds no
 schema. Protect the database before deploying, and treat an image rollback and
 a database restore as separate operations.
 
+Backend CI selects Go's bundled time zone database through `ZONEINFO` so the
+calendar fixtures use the same rules on Linux, macOS and Windows. The macOS
+runner's host data produced a different Havana offset in the upstream calendar
+test. Keep this test-environment setting until upstream supplies equivalent
+cross-platform consistency; application timezone loading remains upstream-owned.
+
 Keep future merges focused on these integration points:
 
 | Upstream integration | Feature-owned implementation | Recheck on sync |

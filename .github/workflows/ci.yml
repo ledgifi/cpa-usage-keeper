@@ -133,6 +133,11 @@ jobs:
           path-type: inherit
           install: mingw-w64-ucrt-x86_64-gcc
 
+      - name: Use Go time zone data
+        shell: bash
+        # Calendar fixtures must use the same rules on every runner OS.
+        run: echo "ZONEINFO=$(go env GOROOT)/lib/time/zoneinfo.zip" >> "$GITHUB_ENV"
+
       - name: Run backend tests
         if: ${{ runner.os != 'Windows' }}
         run: go test ./cmd/... ./internal/...
