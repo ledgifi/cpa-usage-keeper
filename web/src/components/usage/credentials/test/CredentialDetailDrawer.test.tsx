@@ -285,12 +285,11 @@ describe('CredentialDetailDrawer', () => {
     }
     await renderDrawer({ selection: { kind: 'credential', row: quotaRow }, timeZone: 'UTC', quotaClockOffset: -60_000 })
     const countdown = () => document.body.querySelector('[data-reset-countdown]')?.textContent
-    expect(countdown()).toContain('3 sec')
+    expect(countdown()).toContain('3s')
     await act(async () => vi.advanceTimersByTime(1000))
-    expect(countdown()).toContain('2 sec')
+    expect(countdown()).toContain('2s')
     await act(async () => vi.advanceTimersByTime(2000))
     expect(countdown()).toBe('key_quota.reset_passed_short')
-    expect(document.body.querySelector('[data-quota-meter]')?.getAttribute('data-stale')).toBe('true')
     expect(document.body.querySelector('[data-quota-freshness]')?.getAttribute('data-status')).toBe('stale')
     expect(fetchCodexQuotaHistory).not.toHaveBeenCalled()
     expect(fetchUsageEvents).not.toHaveBeenCalled()

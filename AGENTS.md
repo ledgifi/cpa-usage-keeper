@@ -1,10 +1,10 @@
 # LedgiFi Keeper patch
 
-Upstream base: v2.0.3 (`9db74cfc380d11064af80cf1626efd6e3d068217`).
+Upstream base: v2.1.1 (`5c97bee91678e3cd9e75201a8025bfcaadf77681`).
 See [feature scope and maintenance](docs/api-key-viewer-quotas.md).
 
-Keep this patch narrow: shared quota presentation in existing admin Credentials,
-and a default-off, cache-only API-key viewer page. Reuse existing Keeper UI,
+Keep this patch narrow: quota freshness and a timeline alongside upstream admin
+Credentials cards, and a default-off, cache-only API-key viewer page. Reuse existing Keeper UI,
 authentication, collection and scheduler patterns. Preserve upstream history;
 avoid fork-only provider fixes, schema changes, compatibility redirects and
 new release machinery. Provider presence checks prevent unknown quotas from

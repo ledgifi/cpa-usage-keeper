@@ -9,8 +9,8 @@ import { AppFooter } from './components/AppFooter';
 import { isKeyViewerPath, type KeyViewerPath } from './features/key-viewer';
 import { KeyAnalysisPage } from './pages/KeyAnalysisPage';
 import { KeyOverviewPage } from './pages/KeyOverviewPage';
+import { LoginBackdrop, LoginPage } from './pages/LoginPage';
 import { QuotasPage } from './pages/QuotasPage';
-import { LoginPage } from './pages/LoginPage';
 import { UsagePage } from './pages/UsagePage';
 import { cpamcEmbedSearch, isCPAMCEmbed } from './embed/cpamcEmbed';
 import { getUsageTabPath, resolveUsageTabFromPath, stripAppBasePath } from './lib/usageNavigation';
@@ -217,7 +217,8 @@ function App() {
   }
 
   return (
-    <div className="app-frame" data-embed={isEmbeddedInCPAMC ? 'cpamc' : undefined}>
+    <div className="app-frame" data-embed={isEmbeddedInCPAMC ? 'cpamc' : undefined} data-page={authState === 'unauthenticated' ? 'login' : undefined}>
+      {authState === 'unauthenticated' && <LoginBackdrop />}
       <main className="app-main">{page}</main>
       <AppFooter loadVersion={authState === 'authenticated'} />
     </div>

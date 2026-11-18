@@ -8,7 +8,7 @@ import styles from './QuotaFreshness.module.scss'
 
 // Admin data is adapted only for shared presentation. Viewer data comes from
 // the dedicated server-side allowlist, never from these credential rows.
-export function credentialQuotaAccount(row: CredentialRow): ViewerQuotaAccount {
+function credentialQuotaAccount(row: CredentialRow): ViewerQuotaAccount {
   const unavailable = row.quotaLoading || row.quotaError || row.refreshStatus === 'queued' || row.refreshStatus === 'running' || row.refreshStatus === 'failed' || row.displayQuotas.length === 0
   return {
     id: row.identity.id || row.identity.identity,
@@ -21,7 +21,7 @@ export function credentialQuotaAccount(row: CredentialRow): ViewerQuotaAccount {
   }
 }
 
-export function displayQuotaRow(quota: DisplayQuota): ViewerQuotaRow {
+function displayQuotaRow(quota: DisplayQuota): ViewerQuotaRow {
   return { id: quota.key, label: quota.label, limit_reached: quota.limitReached, remaining_percent: quota.barPercent ?? undefined, reset_at: quota.resetText, window_seconds: quota.windowSeconds }
 }
 

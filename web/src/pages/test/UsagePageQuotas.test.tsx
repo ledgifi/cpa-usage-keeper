@@ -38,23 +38,21 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-it('extends Credentials with the shared meters and windows, retaining admin navigation and actions', async () => {
+it('shows quota freshness and the timeline alongside upstream Credential cards and actions', async () => {
   await act(async () => root.render(<UsagePage />));
   expect(container.querySelector('[data-keeper-page="usage"]')).not.toBeNull();
   expect(container.querySelector('[data-keeper-page="key-viewer"]')).toBeNull();
   expect(container.querySelector('a[href^="/cpa/credentials"]')).not.toBeNull();
   expect(container.querySelector('a[href="/cpa/subscriptions"]')).toBeNull();
   expect(container.querySelector('a[href="/cpa/quotas"]')).toBeNull();
-  expect(container.querySelectorAll('[data-quota-meter]')).toHaveLength(1);
+  expect(container.querySelectorAll('[data-quota-key]')).toHaveLength(1);
   expect(container.querySelectorAll('[data-window-lane]')).toHaveLength(1);
   expect(container.textContent).toContain('Update Quotas');
   expect(container.textContent).toContain('Automatic quota refresh is off.');
-  expect(container.querySelector('[data-reset-countdown]')?.textContent).toContain('3 sec');
+  expect(container.querySelector('[data-reset-countdown]')?.textContent).toContain('3s');
   expect(api.fetchUsageQuotaCache).toHaveBeenCalledTimes(1);
   await act(async () => vi.advanceTimersByTime(3000));
   expect(container.querySelector('[data-reset-countdown]')?.textContent).toContain('Awaiting update');
-  expect(container.querySelector('[data-reset-countdown]')?.getAttribute('aria-label')).toContain('awaiting a newer cached observation');
-  expect(container.querySelector('[data-quota-meter]')?.getAttribute('data-stale')).toBe('true');
   expect(container.querySelector('[data-quota-freshness]')?.getAttribute('data-status')).toBe('stale');
   expect(api.fetchUsageQuotaCache).toHaveBeenCalledTimes(1);
   await act(async () => triggerHeaderRefresh());
@@ -75,7 +73,7 @@ it('keeps disabled and deleted accounts out of the timeline and suppresses faile
   expect(container.querySelectorAll('[data-window-lane]')).toHaveLength(1);
   api.fetchUsageQuotaCache.mockResolvedValue({ ...cache, items: [{ ...cache.items[0], status: 'failed', display_status: 'unavailable', error: 'latest refresh failed' }] });
   await act(async () => triggerHeaderRefresh());
-  expect(container.querySelectorAll('[data-quota-meter]')).toHaveLength(0);
+  expect(container.querySelectorAll('[data-quota-key]')).toHaveLength(0);
   expect(container.querySelectorAll('[data-window-lane]')).toHaveLength(0);
   expect(container.textContent).toContain('latest refresh failed');
   expect(api.refreshUsageQuotas).not.toHaveBeenCalled();

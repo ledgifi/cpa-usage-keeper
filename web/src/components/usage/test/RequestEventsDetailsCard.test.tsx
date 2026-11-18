@@ -62,11 +62,14 @@ const tableValues = (html: string) => {
 };
 
 describe('RequestEventsDetailsCard', () => {
-  it('renders the event title, total and incremental loading status', () => {
-    const html = renderCard();
+  it('renders the event title, counts and load-more action', () => {
+    const html = renderCard({ hasMore: true, totalCount: 500, onLoadMore: () => undefined });
     expect(html).toContain('Request Event Log');
-    expect(html).toContain('120 total events');
-    expect(html).toContain('Loaded 1 / 120');
+    expect(html).not.toContain('class="keeper-card-subtitle"');
+    expect(html).toContain('500 total events');
+    expect(html).toContain('Loaded 1 / 500');
+    expect(html).toContain('aria-rowcount="501"');
+    expect(html).toContain('Load more');
     for (const obsoleteControl of ['Event Stream', 'Rows per page', '>Previous<', '>Next<']) {
       expect(html).not.toContain(obsoleteControl);
     }
@@ -205,7 +208,9 @@ describe('RequestEventsDetailsCard', () => {
     expect(html).toContain('Request Log Too Large');
     expect(html).toContain('Download Raw Log');
     expect(html).toContain('Cancel');
-    expect(html).not.toContain('aria-controls=');
+    const dialogStart = html.indexOf('role="dialog"');
+    expect(dialogStart).toBeGreaterThan(-1);
+    expect(html.slice(dialogStart)).not.toContain('aria-controls=');
   });
 
   it('keeps selected filters visible when absent from backend options', () => {
@@ -254,15 +259,6 @@ describe('RequestEventsDetailsCard', () => {
     expect(isRequestEventColumnSelectionControlled(['timestamp'], () => undefined)).toBe(true);
     expect(isRequestEventColumnSelectionControlled(undefined, () => undefined)).toBe(false);
     expect(isRequestEventColumnSelectionControlled(['timestamp'], undefined)).toBe(false);
-  });
-
-  it('shows loaded status, a load-more action and the full accessible row count', () => {
-    const html = renderCard({ hasMore: true, totalCount: 500, onLoadMore: () => undefined });
-    expect(html).toContain('Loaded 1 / 500');
-    expect(html).toContain('Load more');
-    expect(html).not.toContain('>Previous<');
-    expect(html).not.toContain('>Next<');
-    expect(html).toContain('aria-rowcount="501"');
   });
 
   it('preloads cursor batches near the bottom while ignoring an empty scroller', () => {

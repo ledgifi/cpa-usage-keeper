@@ -154,6 +154,7 @@ func TestKeyQuotaCannotReachAdministratorRoutes(t *testing.T) {
 	for _, route := range []struct{ method, path string }{
 		{"POST", "/quota/refresh"}, {"POST", "/quota/reset"}, {"GET", "/quota/reset-credits/auth-secret"}, {"POST", "/quota/cache"}, {"GET", "/quota/refresh/auth-secret"}, {"POST", "/quota/inspection"}, {"GET", "/quota/inspection"}, {"GET", "/quota/auto-refresh/settings"}, {"PUT", "/quota/auto-refresh/settings"}, {"DELETE", "/quota/history/auth-secret/cycles/1"}, {"PATCH", "/credentials/auth-secret/status"}, {"DELETE", "/credentials"}, {"GET", "/usage/identities"}, {"GET", "/usage/api-keys"},
 		{"PATCH", "/credentials/status"}, {"PATCH", "/credentials/auth-secret/priority"}, {"PATCH", "/ai-providers/auth-secret/status"}, {"PATCH", "/ai-providers/auth-secret/priority"},
+		{"GET", "/models"}, {"GET", "/usage/events/live?range=24h"},
 		{"GET", "/pricing/models"}, {"PUT", "/pricing/models"}, {"DELETE", "/pricing/models"}, {"POST", "/pricing/recalculations"}, {"GET", "/pricing/recalculations/current"}, {"GET", "/pricing/sync/fetch"}, {"POST", "/pricing/sync/apply"},
 		{"GET", "/auth/sessions"}, {"PATCH", "/auth/sessions/other-session"}, {"DELETE", "/auth/sessions/other-session"},
 	} {

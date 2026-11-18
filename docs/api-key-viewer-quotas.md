@@ -1,20 +1,17 @@
 # Cached quota visualization
 
-LedgiFi patch base: upstream v2.0.3,
-`9db74cfc380d11064af80cf1626efd6e3d068217` (October 30, 2026).
-The original v1 release was `v1.15.11-ledgifi.1`; the v2 integration preserves
-that history and merges the stable upstream tag.
+LedgiFi patch base: upstream v2.1.1,
+`5c97bee91678e3cd9e75201a8025bfcaadf77681` (November 15, 2026).
 The safe endpoint adapts only the quota portion of reference commit
 `4504d36718bfb02bd75cdf81c6a6b8b582877e5b` from
 `bjoern-sobolewski/cpa-usage-keeper`; PR #597 was closed and unmerged.
 
 ## Scope and access
 
-Admins keep **Credentials** (`/credentials`), including its existing management
-controls, health mode, usage metrics, pagination and provider filters. Its quota
-meters now share compact countdowns, freshness and a quota-window timeline with
-the API-key viewer's **Quotas** page (`/quotas`). The viewer shows the small
-subscription list directly, without search, filters, sorting or pagination.
+Admin **Credentials** (`/credentials`) uses upstream cards, management controls,
+health and quota panels. Credentials and the API-key viewer's **Quotas** page
+(`/quotas`) share quota freshness and the quota-window timeline. The viewer shows
+the small subscription list directly, without search, filters, sorting or pagination.
 Routes respect `APP_BASE_PATH`.
 
 Enable teammate access in the local private environment, then restart Keeper:
@@ -51,10 +48,10 @@ logs or local token/cost accounting are returned. Responses use `no-store`.
   These optional fields remain unknown rather than adding parser fixes. Existing
   admin provider behavior is retained.
 - Countdowns use the server clock and tick each second. Relative resets,
-  including zero, are anchored to the cache observation, not the read time.
-  Passed resets mark the snapshot stale without assuming a refill. Timestamps
-  stay inline; full times are available in accessible labels/tooltips. Viewer
-  dates use browser local time; admin meters respect Keeper's selected timezone.
+  including zero, are anchored to the cache observation. Passed resets mark the
+  snapshot stale. Viewer timestamps use browser local time. Admin cards use
+  upstream compact reset tooltips in Keeper's selected timezone and the drawer
+  shows the full reset label.
 - Freshness follows the existing quota scheduler's next due time plus two
   minutes of queue grace. Without an enabled configured schedule, data is
   not classified against a refresh deadline; the UI shows its update age without
@@ -81,7 +78,7 @@ logs or local token/cost accounting are returned. Responses use `no-store`.
 
 The LedgiFi patch adds no collector, provider integration, role/password system,
 schema migration, leaderboard, shared teammate charts, compatibility routes or
-dependencies beyond upstream v2.0.1. Fable and model integrations absent from
+dependencies beyond upstream. Fable and model integrations absent from
 this proxy remain out of scope.
 Unknown windows use generic safe labels. IDs change if database rows are recreated.
 The existing memory-only cache clears on restart.
@@ -159,7 +156,7 @@ and the repository README for the upstream migration behavior.
 Source and public image live under `ledgifi/cpa-usage-keeper`. Keep upstream
 history and a small maintained patch on `main`; the `upstream` remote tracks
 `Willxup/cpa-usage-keeper`. Release tags use `v<upstream>-ledgifi.<revision>`
-(for this base, `v2.0.3-ledgifi.1`). Use the existing Dockerfile and
+(for this base, `v2.1.1-ledgifi.1`). Use the existing Dockerfile and
 upstream release workflow, targeting only `linux/amd64` for the internal Unraid
 host. The shared release policy accepts the LedgiFi revision suffix and still
 requires the tagged v2 commit to be on `origin/main`. The release workflow runs
@@ -191,20 +188,18 @@ projection stay in `internal/api/key_quota.go`. Viewer reads use
 snapshots without deleting task entries or advancing cleanup deadlines. Existing
 admin cache reads retain upstream maintenance behavior. The viewer projection
 omits local costs, so its snapshot route remains readable during historical
-cost recalculation. Provider parsers and types are unchanged from upstream v2.0.3.
+cost recalculation. Provider parsers and types follow upstream.
 Only Claude/Codex window normalization consumes existing presence flags for
 missing percentages and explicit zero resets; other normalization is unchanged.
 
 ### Customization boundaries
 
-- Keep shared meters, freshness, countdowns and timeline logic in
-  `web/src/components/usage/quotas/`. The viewer page composes these components;
-  existing Credentials views use `quotas/credentialQuotaPresentation.tsx` as their
-  display adapter. Keep normalized view-model fields in `credentialViewModels.ts`;
-  projection, freshness badges and timeline composition belong in the feature
-  adapter. Limit edits to Credentials views and cache hooks to rendering and
-  forwarding display metadata. These upstream integration points deserve close
-  review during merges.
+- Keep viewer meters, shared freshness and timeline logic in
+  `web/src/components/usage/quotas/`. Credentials uses
+  `quotas/credentialQuotaPresentation.tsx` for freshness and the timeline. Keep
+  admin meters and tooltips aligned with upstream and pass them the server clock
+  for live countdowns. Keep normalized view-model fields in
+  `credentialViewModels.ts`.
 - Keep viewer selection, sanitization and DTO projection in
   `internal/api/key_quota.go`. Config, session capabilities, app startup and router
   wiring remain small hooks into upstream patterns. Preserve the default-off
@@ -219,32 +214,25 @@ missing percentages and explicit zero resets; other normalization is unchanged.
   LedgiFi tag acceptance, amd64 target and binary/Homebrew restriction. Maintain
   deployment records in the private operations repository.
 
-### v2.0.3 integration
+### v2.1 upgrade notes
 
-The stable sync retains upstream history and the token-accounting, service-tier,
-quota-recovery and credential-write consistency fixes. It adopts upstream's
-current `CredentialSectionShell` interface by removing the retired `countLabel`
-prop from the viewer page. Docker publishing retains the amd64-only target and
-upstream's `pull: true` base-image refresh. The database migrations for effective
-service tiers and plugin API-key sources are upstream-owned; this patch adds no
-schema. Protect the database before deploying, and treat an image rollback and
-a database restore as separate operations.
-
-Backend CI selects Go's bundled time zone database through `ZONEINFO` so the
-calendar fixtures use the same rules on Linux, macOS and Windows. The macOS
-runner's host data produced a different Havana offset in the upstream calendar
-test. Keep this test-environment setting until upstream supplies equivalent
-cross-platform consistency; application timezone loading remains upstream-owned.
+Upstream v2.1.1 adds nullable Codex Sign in with ChatGPT fields to SQLite
+usage identities. Preserve a consistent database snapshot with the previous image
+digest before upgrading. Pricing management moved to **Models**. For live
+**Request Events** through a reverse proxy, verify that updates arrive before the
+stream closes and that proxy timeouts clear the 15-second heartbeat. See the
+[v2.1.0](https://github.com/Willxup/cpa-usage-keeper/releases/tag/v2.1.0) and
+[v2.1.1](https://github.com/Willxup/cpa-usage-keeper/releases/tag/v2.1.1) release notes.
 
 Keep future merges focused on these integration points:
 
 | Upstream integration | Feature-owned implementation | Recheck on sync |
 | --- | --- | --- |
-| Credential rows and drawer | `quotas/credentialQuotaPresentation.tsx`, shared meters/timeline | Upstream props and normalized fields; both views retain unknown/zero, stale and reset semantics. |
+| Credential cards and drawer | `quotas/credentialQuotaPresentation.tsx`, server clock | Upstream card controls and reset tooltips, unknown/zero values, cache freshness and timeline. |
 | Admin cache response and viewer route registration | `internal/api/quota_display.go`, `internal/api/key_quota.go` | Cached metadata stays additive; active-key authorization, default-off capability and DTO allowlist remain enforced. |
 | Quota cache and normalization | `PeekCachedQuota`, presence checks, scheduler-based freshness | Retire each safeguard only when upstream supplies equivalent behavior and its existing regression tests pass against that behavior. |
 
-In v2.0.3, upstream cache reads still prune task state and zero-valued normalized
+In v2.1.1, upstream cache reads still prune task state and zero-valued normalized
 Claude/Codex percentages still lose presence. Both local safeguards remain
 necessary. Keep upstream collection, provider parsing, pricing, storage and
 authentication lifecycle intact; prefer current upstream props and hooks over
@@ -260,8 +248,8 @@ key sources or changes active-key eligibility.
    current APIs, names and lifecycle, then reconnect the small integration hooks
    above. Remove custom code that upstream now supplies.
 3. Review the complete customization against the target tag. While the merge is
-   staged, use `git diff --cached --stat v2.0.3` and
-   `git diff --cached v2.0.3`; after committing, use `git diff v2.0.3 HEAD`.
+   staged, use `git diff --cached --stat v2.1.1` and
+   `git diff --cached v2.1.1`; after committing, use `git diff v2.1.1 HEAD`.
    Substitute the reviewed tag on later upgrades. Every remaining difference
    should serve quota presentation, safe viewer access, its regression coverage,
    maintenance documentation or the existing fork publishing adjustments.
