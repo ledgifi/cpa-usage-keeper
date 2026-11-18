@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KeyViewerShell } from '@/features/key-viewer/KeyViewerShell';
 import type { KeyViewerPath } from '@/features/key-viewer/navigation';
 import { ApiError, fetchQuotas } from '@/lib/api';
-import type { AuthSessionAPIKeySummary, ViewerQuotaResponse } from '@/lib/types';
+import type { AuthSessionAPIKeySummary, ViewerQuotaAccount, ViewerQuotaResponse } from '@/lib/types';
 import { ProviderBrandIcon } from '@/components/ProviderBrandIcon';
 import { CredentialSubscriptionBadge } from '@/components/usage/credentials/CredentialSubscriptionBadge';
 import { resolveCredentialSubscriptionBadge } from '@/components/usage/credentials/credentialSubscription';
@@ -28,7 +28,6 @@ export function QuotasPage({ apiKey, onNavigate, onAuthRequired }: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [clockOffset, setClockOffset] = useState(0);
-  const now = useQuotaClock(clockOffset);
   const request = useRef<AbortController | null>(null);
   const refresh = useCallback(async () => {
     if (request.current) return;
@@ -70,7 +69,6 @@ export function QuotasPage({ apiKey, onNavigate, onAuthRequired }: {
   }, [refresh]);
 
   const accounts = data?.accounts ?? [];
-  const orderedAccounts = [...accounts].sort((a, b) => a.provider.localeCompare(b.provider) || a.label.localeCompare(b.label));
 
   const content = <div className={styles.quotaPage}>
       <header className={styles.pageHeading}>
@@ -80,30 +78,38 @@ export function QuotasPage({ apiKey, onNavigate, onAuthRequired }: {
       {error && <div className={styles.error} role="alert"><p>{t('key_quota.error')}</p><Button type="button" size="sm" variant="secondary" disabled={loading} onClick={() => void refresh()}>{t('key_quota.retry_cache')}</Button></div>}
       {loading && !data && <p role="status">{t('common.loading')}</p>}
       {!loading && data?.accounts.length === 0 && <p>{t('key_quota.empty')}</p>}
-      {accounts.length > 0 && <>
-        <CredentialSectionShell title={t('usage_stats.credentials_title')} subtitle={t('key_quota.shared')}>
-          {orderedAccounts.map((account) => {
-            const status = quotaDisplayStatus(account, now);
-            const badge = account.subscription && resolveCredentialSubscriptionBadge({ provider: account.provider, plan: account.subscription.plan, tierName: account.subscription.tier });
-            return <article className={`${adminStyles.credentialRow} ${styles.subscription}`} key={account.id} data-quota-account={account.id} data-status={status}>
-              <div className={styles.identity}>
-                <div className={styles.accountName}><ProviderBrandIcon providerType={account.provider} size={34} /><h3>{account.label}</h3></div>
-                <div className={adminStyles.credentialIdentityBadges}>
-                  {badge && <span aria-label={t('key_quota.plan')}><CredentialSubscriptionBadge model={badge} /></span>}
-                  <QuotaFreshness status={status} updatedAt={account.updated_at} now={now} />
-                </div>
-              </div>
-              <div className={adminStyles.credentialQuotaBars}>
-                {(account.rows.length === 0 || status === 'unavailable') && <p className={styles.description}>{t('key_quota.no_values')}</p>}
-                {status !== 'unavailable' && account.rows.map((row) => <QuotaMeter key={row.id} row={row} accountLabel={account.label} stale={status === 'stale'} now={now} />)}
-              </div>
-            </article>;
-          })}
-        </CredentialSectionShell>
-        <QuotaWindowTimeline accounts={orderedAccounts} now={now} />
-      </>}
+      {accounts.length > 0 && <QuotaAccounts accounts={accounts} clockOffset={clockOffset} />}
     </div>;
 
   return <KeyViewerShell activePage="quota" apiKey={apiKey} onNavigate={onNavigate} onAuthRequired={onAuthRequired}
     onRefresh={() => void refresh()} refreshing={loading} refreshDisabled={loading}>{content}</KeyViewerShell>;
+}
+
+function QuotaAccounts({ accounts, clockOffset }: { accounts: ViewerQuotaAccount[]; clockOffset: number }) {
+  const { t } = useTranslation();
+  const now = useQuotaClock(clockOffset);
+  const orderedAccounts = useMemo(() => [...accounts].sort((a, b) => a.provider.localeCompare(b.provider) || a.label.localeCompare(b.label)), [accounts]);
+
+  return <>
+    <CredentialSectionShell title={t('usage_stats.credentials_title')} subtitle={t('key_quota.shared')}>
+      {orderedAccounts.map((account) => {
+        const status = quotaDisplayStatus(account, now);
+        const badge = account.subscription && resolveCredentialSubscriptionBadge({ provider: account.provider, plan: account.subscription.plan, tierName: account.subscription.tier });
+        return <article className={styles.subscription} key={account.id} data-quota-account={account.id} data-status={status}>
+          <div className={styles.identity}>
+            <div className={styles.accountName}><ProviderBrandIcon providerType={account.provider} size={34} /><h3>{account.label}</h3></div>
+            <div className={adminStyles.credentialIdentityBadges}>
+              {badge && <span aria-label={t('key_quota.plan')}><CredentialSubscriptionBadge model={badge} /></span>}
+              <QuotaFreshness status={status} updatedAt={account.updated_at} now={now} />
+            </div>
+          </div>
+          <div className={adminStyles.credentialQuotaBars}>
+            {(account.rows.length === 0 || status === 'unavailable') && <p className={styles.description}>{t('key_quota.no_values')}</p>}
+            {status !== 'unavailable' && account.rows.map((row) => <QuotaMeter key={row.id} row={row} accountLabel={account.label} stale={status === 'stale'} now={now} />)}
+          </div>
+        </article>;
+      })}
+    </CredentialSectionShell>
+    <QuotaWindowTimeline accounts={orderedAccounts} now={now} />
+  </>;
 }

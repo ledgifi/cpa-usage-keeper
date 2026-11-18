@@ -266,15 +266,22 @@ describe('CredentialsSection quota usage mode rendering', () => {
     const now = Date.parse('2026-10-15T12:00:00Z')
     const resetAt = new Date(now + 3000).toISOString()
     const resetRow = { ...row, displayQuotas: [{ ...quota, resetText: resetAt }] }
-    const render = (clock: number) => renderToStaticMarkup(createElement(CredentialQuotaPanel, { row: resetRow, quotaUsageMode: 'current', timeZone, now: clock }))
+    const render = (clock: number) => {
+      vi.setSystemTime(clock)
+      return renderToStaticMarkup(createElement(CredentialQuotaPanel, { row: resetRow, quotaUsageMode: 'current', timeZone }))
+    }
 
-    const html = render(now)
-    expect(html).toContain('3s')
-    expect(html).not.toContain('key_quota.reset_passed_short')
+    try {
+      const html = render(now)
+      expect(html).toContain('3s')
+      expect(html).not.toContain('key_quota.reset_passed_short')
 
-    const expired = render(now + 3000)
-    expect(expired).toContain('key_quota.reset_passed_short')
-    expect(expired).not.toContain('3s')
+      const expired = render(now + 3000)
+      expect(expired).toContain('key_quota.reset_passed_short')
+      expect(expired).not.toContain('3s')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('renders current quota usage by default and estimated usage when requested', () => {

@@ -12,6 +12,7 @@ vi.mock('@/features/key-viewer/KeyViewerShell', () => ({
 }));
 vi.mock('react-i18next', () => ({ initReactI18next: { type: '3rdParty', init: () => undefined }, useTranslation: () => ({ t: (key: string) => key === 'usage_stats.credentials_subscription_codex_pro_20x' ? 'Pro 20x' : key, i18n: { language: 'en' } }) }));
 import { QuotasPage } from '../QuotasPage';
+import styles from '../QuotasPage.module.scss';
 import { resetCountdown, quotaDisplayStatus } from '@/components/usage/quotas/quotaDisplay';
 
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
@@ -50,6 +51,7 @@ describe('QuotasPage cache reads', () => {
   const render = async () => { await act(async () => root.render(<QuotasPage onNavigate={onNavigate} onAuthRequired={onAuthRequired} />)); };
   it('renders unknown versus explicit zero, plans, live countdown, and passed reset without assuming refill', async () => {
     mocks.fetchQuotas.mockResolvedValue(fixture()); await render();
+    expect(container.querySelector('[data-quota-account]')?.className).toBe(styles.subscription);
     expect(container.textContent).toContain('Pro 20x');
     expect(container.textContent).toContain('key_quota.schedule_disabled');
     expect(container.textContent).toContain('0% key_quota.remaining');

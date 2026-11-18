@@ -275,7 +275,9 @@ describe('CredentialDetailDrawer', () => {
       .toBe('user106@edu.sso.monsterx.it.com.json')
   })
 
-  it('ticks quota countdowns and marks a passed reset stale using the server clock', async () => {
+  it('ticks quota countdowns with the server clock while the drawer is open', async () => {
+    const setInterval = vi.spyOn(window, 'setInterval')
+    const clearInterval = vi.spyOn(window, 'clearInterval')
     const now = Date.parse('2026-10-15T12:00:00Z')
     vi.setSystemTime(now + 60_000)
     const quotaRow: CredentialRow = {
@@ -283,7 +285,12 @@ describe('CredentialDetailDrawer', () => {
       quotaCache: { status: 'cached', updated_at: new Date(now).toISOString() },
       displayQuotas: [{ key: 'five_hour', label: '5-hour', percent: 50, barPercent: 50, percentKind: 'remaining', status: 'ok', resetText: new Date(now + 3000).toISOString() }],
     }
-    await renderDrawer({ selection: { kind: 'credential', row: quotaRow }, timeZone: 'UTC', quotaClockOffset: -60_000 })
+    const props = { selection: { kind: 'credential', row: quotaRow } as const, timeZone: 'UTC', quotaClockOffset: -60_000 }
+    await renderDrawer({ ...props, open: false })
+    expect(setInterval).not.toHaveBeenCalled()
+    await renderDrawer(props)
+    expect(setInterval).toHaveBeenCalledExactlyOnceWith(expect.any(Function), 1000)
+    const interval = setInterval.mock.results[0].value
     const countdown = () => document.body.querySelector('[data-reset-countdown]')?.textContent
     expect(countdown()).toContain('3s')
     await act(async () => vi.advanceTimersByTime(1000))
@@ -294,6 +301,11 @@ describe('CredentialDetailDrawer', () => {
     expect(fetchCodexQuotaHistory).not.toHaveBeenCalled()
     expect(fetchUsageEvents).not.toHaveBeenCalled()
     expect(fetchErrorEvents).not.toHaveBeenCalled()
+
+    await renderDrawer({ ...props, open: false })
+    await act(async () => vi.advanceTimersByTimeAsync(400))
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull()
+    expect(clearInterval).toHaveBeenCalledWith(interval)
   })
 
   it('shows the shared quota history for Codex and Claude Credentials', async () => {

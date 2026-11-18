@@ -1,11 +1,35 @@
-import { useEffect, useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 
-// One display clock per page. Ticking never collects or reloads quota data.
-export function useQuotaClock(clockOffset = 0) {
-  const [now, setNow] = useState(Date.now);
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-  return now + clockOffset;
+const listeners = new Set<() => void>();
+let now: number | null = null;
+let interval: number | undefined;
+
+function subscribe(listener: () => void) {
+  if (listeners.size === 0) {
+    now = Date.now();
+    interval = window.setInterval(() => {
+      now = Date.now();
+      for (const notify of listeners) notify();
+    }, 1000);
+  }
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) {
+      window.clearInterval(interval);
+      now = null;
+    }
+  };
+}
+
+const getSnapshot = () => now;
+const getIdleSnapshot = () => null;
+const subscribeIdle = () => () => {};
+
+// Scope rerenders to quota displays. An absent offset leaves the display clock idle.
+export function useQuotaClock(clockOffset?: number) {
+  const [mountedAt] = useState(Date.now);
+  const active = clockOffset !== undefined;
+  const time = useSyncExternalStore(active ? subscribe : subscribeIdle, active ? getSnapshot : getIdleSnapshot, getIdleSnapshot);
+  return (time ?? mountedAt) + (clockOffset ?? 0);
 }

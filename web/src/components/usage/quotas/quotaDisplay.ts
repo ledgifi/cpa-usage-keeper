@@ -22,13 +22,9 @@ export function quotaDisplayStatus(account: ViewerQuotaAccount, now: number): Vi
   return account.status;
 }
 
-export function shortQuotaTimestamp(value: string | undefined, locale?: string, timeZone?: string): string | null {
+export function shortQuotaTimestamp(value: string | undefined, locale?: string): string | null {
   if (!value || !Number.isFinite(Date.parse(value))) return null;
-  try {
-    return new Date(value).toLocaleString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', timeZone });
-  } catch {
-    return null; // A Keeper timezone the browser cannot interpret stays unknown.
-  }
+  return new Date(value).toLocaleString(locale, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export function quotaObservationAge(value: string | undefined, now: number, locale?: string): string | null {

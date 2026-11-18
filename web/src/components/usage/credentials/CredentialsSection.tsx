@@ -138,7 +138,6 @@ interface CredentialsSectionProps {
 
 export function CredentialsSection({ quotaScheduledRefreshEnabled, quotaClockOffset = 0, rows, timeZone, total, page, totalPages, pageSize, activeOnly, sort, loading, quotaRefreshing, quotaRefreshError, quotaInspectionStatus, quotaInspectionLoading, quotaInspectionStarting, quotaInspectionError, onPageChange, onPageSizeChange, onActiveOnlyChange, onSortChange, onRefreshQuota, onRefreshQuotaForAuthIndex, onResetQuotaForAuthIndex, editFallbackRef, onEdit, onOpenDetails, statusPendingIdentityIds, onToggleStatus, onSavePriority, onRefreshInspectionStatus, onStartInspection, onAfterInvalidAccountAction }: CredentialsSectionProps) {
   const { t } = useTranslation()
-  const now = useQuotaClock(quotaClockOffset)
   const [inspectionOpen, setInspectionOpen] = useState(false)
   const [quotaUsageMode, setQuotaUsageMode] = useState<QuotaUsageMode>('current')
   const [expiryTooltip, setExpiryTooltip] = useState<CredentialExpiryTooltipState | null>(null)
@@ -343,8 +342,8 @@ export function CredentialsSection({ quotaScheduledRefreshEnabled, quotaClockOff
             health={<CredentialHealthPanel variant="compact" showCompactMeta displayName={row.displayName} health={row.credentialHealth} lastUsedAt={row.identity.last_used_at} windowCacheReadRate={row.windowCacheReadRate} />}
             quota={(
               <>
-                <CredentialQuotaFreshness row={row} now={now} />
-                <CredentialQuotaPanel variant="compact" row={row} quotaUsageMode={quotaUsageMode} timeZone={timeZone} now={now} />
+                <CredentialQuotaFreshness row={row} clockOffset={quotaClockOffset} />
+                <CredentialQuotaPanel variant="compact" row={row} quotaUsageMode={quotaUsageMode} timeZone={timeZone} clockOffset={quotaClockOffset} />
               </>
             )}
             footerLeft={siwcState && (
@@ -405,7 +404,7 @@ export function CredentialsSection({ quotaScheduledRefreshEnabled, quotaClockOff
         onSortChange={(nextSort) => onSortChange(nextSort as UsageIdentityPageSort)}
       />
       </CredentialSectionShell>
-      <CredentialQuotaTimeline rows={rows} now={now} scheduledRefreshEnabled={quotaScheduledRefreshEnabled} />
+      <CredentialQuotaTimeline rows={rows} clockOffset={quotaClockOffset} scheduledRefreshEnabled={quotaScheduledRefreshEnabled} />
       {expiryTooltip && activeExpiryTooltipText && typeof document !== 'undefined'
         ? createPortal(
             <div
@@ -1671,10 +1670,9 @@ function QuotaUsageModeSwitch({ label, mode, onChange }: { label: string; mode: 
   )
 }
 
-export function CredentialQuotaPanel({ row, quotaUsageMode, timeZone, variant = 'full', now: clockNow }: { row: CredentialRow; quotaUsageMode: QuotaUsageMode; timeZone?: string; variant?: 'full' | 'compact'; now?: number }) {
+export function CredentialQuotaPanel({ row, quotaUsageMode, timeZone, variant = 'full', clockOffset }: { row: CredentialRow; quotaUsageMode: QuotaUsageMode; timeZone?: string; variant?: 'full' | 'compact'; clockOffset?: number }) {
   const { t } = useTranslation()
-  const [mountedAt] = useState(Date.now)
-  const now = clockNow ?? mountedAt
+  const now = useQuotaClock(clockOffset)
   const compact = variant === 'compact'
 
   // 限额区域按加载、错误、刷新中、无缓存、可展示数据的顺序降级。

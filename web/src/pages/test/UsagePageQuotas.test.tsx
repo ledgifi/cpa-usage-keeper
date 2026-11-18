@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { act } from 'react';
+import { act, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import i18n from '@/i18n';
@@ -14,6 +14,17 @@ vi.mock('@/lib/api', async (original) => ({
   fetchCpaApiKeyOptions: async () => ({ options: [] }),
   fetchUsageQuotaInspectionStatus: async () => ({ running: false }),
 }));
+const renderHealth = vi.hoisted(() => vi.fn());
+vi.mock('@/components/usage/credentials/CredentialHealthPanel', async (original) => {
+  const actual = await original<typeof import('@/components/usage/credentials/CredentialHealthPanel')>();
+  return {
+    ...actual,
+    CredentialHealthPanel: (props: ComponentProps<typeof actual.CredentialHealthPanel>) => {
+      renderHealth();
+      return <actual.CredentialHealthPanel {...props} />;
+    },
+  };
+});
 import { UsagePage } from '../UsagePage';
 
 let container: HTMLDivElement;
@@ -51,7 +62,10 @@ it('shows quota freshness and the timeline alongside upstream Credential cards a
   expect(container.textContent).toContain('Automatic quota refresh is off.');
   expect(container.querySelector('[data-reset-countdown]')?.textContent).toContain('3s');
   expect(api.fetchUsageQuotaCache).toHaveBeenCalledTimes(1);
+  expect(renderHealth).toHaveBeenCalled();
+  renderHealth.mockClear();
   await act(async () => vi.advanceTimersByTime(3000));
+  expect(renderHealth).not.toHaveBeenCalled();
   expect(container.querySelector('[data-reset-countdown]')?.textContent).toContain('Awaiting update');
   expect(container.querySelector('[data-quota-freshness]')?.getAttribute('data-status')).toBe('stale');
   expect(api.fetchUsageQuotaCache).toHaveBeenCalledTimes(1);

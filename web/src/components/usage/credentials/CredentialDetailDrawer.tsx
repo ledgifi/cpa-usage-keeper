@@ -8,7 +8,6 @@ import { RequestEventLogModal } from '@/components/usage/RequestEventLogModal'
 import { ApiError, fetchErrorEvents, fetchUsageEvents, isCostsBusy } from '@/lib/api'
 import type { ErrorEvent, UsageEvent, UsageEventRequestLogResponse } from '@/lib/types'
 import { CredentialQuotaPanel } from './CredentialsSection'
-import { useQuotaClock } from '../quotas/useQuotaClock'
 import { CredentialQuotaFreshness } from '../quotas/credentialQuotaPresentation'
 import { CredentialErrorEventsList } from './CredentialErrorEventsList'
 import { CredentialHealthPanel } from './CredentialHealthPanel'
@@ -103,7 +102,6 @@ export function CredentialDetailDrawer({
       fallbackFocusRef?.current?.focus()
     }
   }, [fallbackFocusRef, open])
-  const quotaNow = useQuotaClock(quotaClockOffset)
   const overviewTabId = useId()
   const quotaHistoryTabId = useId()
   const requestsTabId = useId()
@@ -453,7 +451,7 @@ export function CredentialDetailDrawer({
               ? t('usage_stats.credentials_detail_disabled')
               : t('usage_stats.credentials_detail_enabled')}
         </span>
-        {selection.kind === 'credential' && <CredentialQuotaFreshness row={selection.row} now={quotaNow} />}
+        {selection.kind === 'credential' && <CredentialQuotaFreshness row={selection.row} clockOffset={quotaClockOffset} />}
       </div>
     </div>
   )
@@ -585,7 +583,7 @@ export function CredentialDetailDrawer({
             {selection.kind === 'credential' ? (
               <section className={styles.overviewSection}>
                 <h3>{t('usage_stats.credentials_detail_quota')}</h3>
-                <CredentialQuotaPanel row={selection.row} quotaUsageMode="current" timeZone={timeZone} now={quotaNow} />
+                <CredentialQuotaPanel row={selection.row} quotaUsageMode="current" timeZone={timeZone} clockOffset={quotaClockOffset} />
               </section>
             ) : null}
           </div>
